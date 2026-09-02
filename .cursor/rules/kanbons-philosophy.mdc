@@ -1,0 +1,14 @@
+---
+description: Read PHILOSOPHY.md before Kanbons product changes; run test and philosophy skills after UI/schema batches
+alwaysApply: true
+---
+
+# Kanbons product rule
+
+Before changing product behavior, read `PHILOSOPHY.md`.
+
+- Warehouse workers and non-technical supply-chain people must understand the UI.
+- Do not overengineer pages. One SQL file per table is the database truth; one typed module in `lib/models/` per table is the app truth.
+- No OCR, login, or extra workflows unless asked. Keep insert/update in model functions so those workflows can call them later.
+
+After a UI or schema batch, follow `.cursor/skills/kanbons-test/SKILL.md` and `.cursor/skills/kanbons-philosophy/SKILL.md`. Do not ship a philosophy violation.
