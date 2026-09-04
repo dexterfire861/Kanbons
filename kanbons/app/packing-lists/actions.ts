@@ -20,7 +20,10 @@ async function fields(formData: FormData) {
 }
 
 export async function createPackingListAction(formData: FormData) {
-  const row = await createPackingList(await fields(formData));
+  const row = await createPackingList({
+    ...(await fields(formData)),
+    status: "confirmed",
+  });
   revalidatePath("/packing-lists");
   revalidatePath(`/packing-lists/${row.id}`);
 }

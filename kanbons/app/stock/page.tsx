@@ -1,10 +1,13 @@
 import { listProducts } from "@/lib/models/products";
 import { listStock } from "@/lib/models/stock";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import { createStockAction, updateStockAction } from "./actions";
 
 export default async function StockPage() {
-  const [stock, products] = await Promise.all([listStock(), listProducts()]);
+  const [stock, products] = await timePage("/stock", () =>
+    Promise.all([listStock(), listProducts()])
+  );
   const byId = new Map(products.map((product) => [product.id, product]));
   const withStock = new Set(stock.map((row) => row.product_id));
   const withoutStock = products.filter((product) => !withStock.has(product.id));

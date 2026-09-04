@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116 116" role="img" aria-label="Kanbons">
+  <rect x="8" y="8" width="100" height="100" rx="20" fill="#fff" stroke="#01233F" stroke-width="10"/>
+  <text
+    x="58"
+    y="76"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="42"
+    font-weight="700"
+    fill="#000"
+  >KL</text>
+</svg>

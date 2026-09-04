@@ -2,6 +2,11 @@ import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList } from "./result";
 
+export {
+  SHIPMENT_UNIT_TYPES,
+  type ShipmentUnitType,
+} from "./shipment_unit_types";
+
 export type ShipmentLine = Database["public"]["Tables"]["shipment_lines"]["Row"];
 export type ShipmentLineInsert = Omit<
   Database["public"]["Tables"]["shipment_lines"]["Insert"],

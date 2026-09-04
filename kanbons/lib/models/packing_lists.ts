@@ -49,3 +49,14 @@ export async function updatePackingList(
       .single()
   );
 }
+
+export async function nextPackingListNumber(): Promise<number> {
+  const rows = okList(
+    await supabase
+      .from("packing_lists")
+      .select("num_pl")
+      .order("num_pl", { ascending: false })
+      .limit(1)
+  );
+  return (rows[0]?.num_pl ?? 0) + 1;
+}

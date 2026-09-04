@@ -1,9 +1,11 @@
 import { listCustomers } from "@/lib/models/customers";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
-import { createCustomerAction, updateCustomerAction } from "./actions";
+import { CustomerAddDialog } from "./add-dialog";
+import { updateCustomerAction } from "./actions";
 
 export default async function CustomersPage() {
-  const rows = await listCustomers();
+  const rows = await timePage("/customers", () => listCustomers());
 
   return (
     <main className="p-6">
@@ -19,7 +21,10 @@ export default async function CustomersPage() {
         ]}
       />
 
-      <form id="add-customer" action={createCustomerAction} hidden />
+      <div className="mb-4">
+        <CustomerAddDialog />
+      </div>
+
       {rows.map((row) => (
         <form
           key={row.id}
@@ -46,38 +51,6 @@ export default async function CustomersPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="num text-zinc-400">new</td>
-              <td>
-                <input form="add-customer" name="name" placeholder="Name" required />
-              </td>
-              <td>
-                <input form="add-customer" name="id_cust" placeholder="Code" />
-              </td>
-              <td>
-                <input form="add-customer" name="city" placeholder="City" />
-              </td>
-              <td>
-                <input form="add-customer" name="state" placeholder="State" />
-              </td>
-              <td>
-                <input form="add-customer" name="address" placeholder="Address" />
-              </td>
-              <td>
-                <input form="add-customer" name="zip_code" placeholder="ZIP" />
-              </td>
-              <td>
-                <input form="add-customer" name="point_of_contact" placeholder="Contact" />
-              </td>
-              <td>
-                <input form="add-customer" name="email_contact" placeholder="Email" />
-              </td>
-              <td className="actions">
-                <button form="add-customer" type="submit" className="border border-zinc-800 px-2 py-1 text-sm">
-                  Add
-                </button>
-              </td>
-            </tr>
             {rows.map((row) => {
               const form = `customer-${row.id}`;
               return (

@@ -1,5 +1,6 @@
 import { listProductMappings } from "@/lib/models/product_mappings";
 import { listProducts } from "@/lib/models/products";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import {
   createProductMappingAction,
@@ -7,10 +8,9 @@ import {
 } from "./actions";
 
 export default async function ProductMappingsPage() {
-  const [rows, products] = await Promise.all([
-    listProductMappings(),
-    listProducts(),
-  ]);
+  const [rows, products] = await timePage("/product-mappings", () =>
+    Promise.all([listProductMappings(), listProducts()])
+  );
 
   return (
     <main className="p-6">

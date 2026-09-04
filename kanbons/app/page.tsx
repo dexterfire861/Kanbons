@@ -29,13 +29,13 @@ const pages = [
     href: "/shipments",
     label: "Incoming containers",
     what: "Containers we received. Open Lines for products inside.",
-    fields: "Number, country, container, arrival, departure",
+    fields: "Number, country, invoice number, arrival, departure",
   },
   {
     href: "/packing-lists",
     label: "Packing lists",
-    what: "What we packed and sent to a customer. Open Lines for products.",
-    fields: "List number, customer, PO, dates, state",
+    what: "What we packed and sent. New packing slip types a PO, then confirm, print, dispatch.",
+    fields: "List number, customer, PO, dates, status",
   },
   {
     href: "/contador",

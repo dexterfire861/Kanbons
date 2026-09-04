@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { getPackingList } from "@/lib/models/packing_lists";
 import { listPackingListLines } from "@/lib/models/packing_list_lines";
 import { listProducts } from "@/lib/models/products";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
+import { dispatchSlipAction } from "../workflow-actions";
 import {
   createPackingListLineAction,
   updatePackingListLineAction,
@@ -17,11 +19,13 @@ export default async function PackingListDetailPage({
   const id = Number((await params).id);
   if (!Number.isFinite(id)) notFound();
 
-  const [header, lines, products] = await Promise.all([
-    getPackingList(id),
-    listPackingListLines(id),
-    listProducts(),
-  ]);
+  const [header, lines, products] = await timePage(`/packing-lists/${id}`, () =>
+    Promise.all([
+      getPackingList(id),
+      listPackingListLines(id),
+      listProducts(),
+    ])
+  );
   if (!header) notFound();
 
   return (
@@ -33,7 +37,7 @@ export default async function PackingListDetailPage({
       </p>
       <PageIntro
         title={`Packing list ${header.num_pl}`}
-        what={`${header.customer ?? "No customer"} · PO ${header.customer_po ?? "—"}. Each row is a product on this list. Total is yards/pieces × price.`}
+        what={`${header.customer ?? "No customer"} · PO ${header.customer_po ?? "—"} · ${header.status}. Each row is a product on this list. Total is yards/pieces × price.`}
         columns={[
           { name: "Product", meaning: "SKU from our catalog." },
           { name: "Yards / pieces", meaning: "How much we packed." },
@@ -42,6 +46,39 @@ export default async function PackingListDetailPage({
           { name: "Total", meaning: "Calculated. Not typed." },
         ]}
       />
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {header.status === "draft" ? (
+          <Link
+            href={`/packing-lists/${header.id}/confirm`}
+            className="border border-zinc-800 px-3 py-1 text-sm"
+          >
+            Confirm
+          </Link>
+        ) : null}
+        <Link
+          href={`/packing-lists/${header.id}/print`}
+          className="border border-zinc-400 px-3 py-1 text-sm"
+        >
+          Print
+        </Link>
+        {header.status === "confirmed" ? (
+          <form action={dispatchSlipAction}>
+            <input type="hidden" name="id" value={header.id} />
+            <button type="submit" className="border border-zinc-800 px-3 py-1 text-sm">
+              Dispatch
+            </button>
+          </form>
+        ) : null}
+        {header.status === "dispatched" ? (
+          <p className="text-sm text-zinc-600">
+            Dispatched
+            {header.dispatched_at
+              ? ` ${new Date(header.dispatched_at).toLocaleDateString()}`
+              : ""}
+          </p>
+        ) : null}
+      </div>
 
       <form id="add-pl-line" action={createPackingListLineAction} hidden />
       {lines.map((line) => (

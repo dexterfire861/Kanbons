@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { num } from "@/lib/form";
+import { num, text } from "@/lib/form";
 import { getProduct } from "@/lib/models/products";
 import {
   createShipmentLine,
@@ -17,7 +17,7 @@ async function productFields(formData: FormData) {
     product: product?.product ?? null,
     yards_pcs: num(formData, "yards_pcs"),
     unit: num(formData, "unit"),
-    type_of_unit: product?.type_of_unit ?? null,
+    type_of_unit: text(formData, "type_of_unit"),
   };
 }
 

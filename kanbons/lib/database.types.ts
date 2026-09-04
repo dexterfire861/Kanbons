@@ -127,34 +127,70 @@ export type Database = {
       }
       packing_lists: {
         Row: {
+          bill_to_address: string | null
+          bill_to_city: string | null
+          bill_to_name: string | null
+          bill_to_state: string | null
+          bill_to_zip: string | null
           customer: string | null
           customer_id: number | null
           customer_po: string | null
           date: string | null
+          dispatched_at: string | null
           id: number
           num_pl: number
           ship_date: string | null
+          ship_to_address: string | null
+          ship_to_city: string | null
+          ship_to_name: string | null
+          ship_to_state: string | null
+          ship_to_zip: string | null
           state: string | null
+          status: string
         }
         Insert: {
+          bill_to_address?: string | null
+          bill_to_city?: string | null
+          bill_to_name?: string | null
+          bill_to_state?: string | null
+          bill_to_zip?: string | null
           customer?: string | null
           customer_id?: number | null
           customer_po?: string | null
           date?: string | null
+          dispatched_at?: string | null
           id?: never
           num_pl: number
           ship_date?: string | null
+          ship_to_address?: string | null
+          ship_to_city?: string | null
+          ship_to_name?: string | null
+          ship_to_state?: string | null
+          ship_to_zip?: string | null
           state?: string | null
+          status?: string
         }
         Update: {
+          bill_to_address?: string | null
+          bill_to_city?: string | null
+          bill_to_name?: string | null
+          bill_to_state?: string | null
+          bill_to_zip?: string | null
           customer?: string | null
           customer_id?: number | null
           customer_po?: string | null
           date?: string | null
+          dispatched_at?: string | null
           id?: never
           num_pl?: number
           ship_date?: string | null
+          ship_to_address?: string | null
+          ship_to_city?: string | null
+          ship_to_name?: string | null
+          ship_to_state?: string | null
+          ship_to_zip?: string | null
           state?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -296,26 +332,26 @@ export type Database = {
       shipments: {
         Row: {
           arrival_date: string | null
-          container_number: string | null
           country: string | null
           departure_date: string | null
           id: number
+          invoice_number: string | null
           number: number
         }
         Insert: {
           arrival_date?: string | null
-          container_number?: string | null
           country?: string | null
           departure_date?: string | null
           id?: never
+          invoice_number?: string | null
           number: number
         }
         Update: {
           arrival_date?: string | null
-          container_number?: string | null
           country?: string | null
           departure_date?: string | null
           id?: never
+          invoice_number?: string | null
           number?: number
         }
         Relationships: []

@@ -93,3 +93,250 @@ button {
   color: #52525b;
   margin: 0;
 }
+
+dialog.box {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid #d4d4d8;
+  padding: 1.25rem 1.5rem;
+  background: #fff;
+}
+
+dialog.box::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+dialog.wide {
+  width: min(56rem, calc(100vw - 2rem));
+}
+
+.dialog-fields {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.dialog-fields label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.875rem;
+}
+
+.dialog-fields label span {
+  font-weight: 600;
+}
+
+.dialog-fields input,
+.dialog-fields select,
+.dialog-fields textarea {
+  border: 1px solid #d4d4d8;
+  padding: 0.35rem 0.5rem;
+  background: #fff;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.slip-copy {
+  border: 3px solid #1b365d;
+  background: #fff;
+  padding: 1rem 1.15rem 1.25rem;
+  color: #111;
+  font-size: 0.8rem;
+  max-width: 48rem;
+  font-family: "Times New Roman", Times, Georgia, serif;
+}
+
+.slip-copy-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #52525b;
+}
+
+.slip-letterhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.slip-logo {
+  display: block;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.slip-company {
+  font-weight: 700;
+  margin: 0;
+}
+
+.slip-letterhead p {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.slip-title-block {
+  text-align: right;
+  min-width: 14rem;
+}
+
+.slip-title {
+  margin: 0 0 0.5rem;
+  font-family: "Apple Chancery", "Snell Roundhand", "Palatino Linotype", cursive;
+  font-size: 2.4rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.slip-meta,
+.slip-bar,
+.slip-items,
+.slip-racks {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.slip-meta {
+  margin-left: auto;
+  width: 14rem;
+}
+
+.slip-meta th,
+.slip-meta td,
+.slip-bar th,
+.slip-bar td,
+.slip-items th,
+.slip-items td,
+.slip-racks th,
+.slip-racks td {
+  border: 1px solid #111;
+  padding: 0.25rem 0.4rem;
+}
+
+.slip-meta th,
+.slip-bar th,
+.slip-items th {
+  font-weight: 700;
+  text-align: center;
+  background: #d9d9d9;
+}
+
+.slip-meta td,
+.slip-bar td,
+.slip-items td {
+  text-align: center;
+}
+
+.slip-items td:nth-child(3) {
+  text-align: left;
+}
+
+.slip-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 0.85rem 0 0.65rem;
+}
+
+.slip-box {
+  border: 1px solid #111;
+  min-height: 5.5rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.slip-box + .slip-box {
+  border-left: none;
+}
+
+.slip-box-label {
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.slip-box p {
+  margin: 0;
+  line-height: 1.3;
+}
+
+.slip-bar {
+  margin-bottom: 0.75rem;
+}
+
+.slip-items-wrap {
+  position: relative;
+}
+
+.slip-watermark {
+  position: absolute;
+  inset: 2.2rem 0 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 5.5rem;
+  font-weight: 600;
+  color: #c4c4c4;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.slip-items {
+  position: relative;
+  z-index: 1;
+  min-height: 12rem;
+}
+
+.slip-items td {
+  height: 1.35rem;
+}
+
+.slip-empty {
+  text-align: left !important;
+  color: #71717a;
+}
+
+.slip-nomatch {
+  display: block;
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.slip-racks {
+  width: 12rem;
+  margin-top: 0.75rem;
+}
+
+.slip-racks th {
+  text-align: left;
+  font-weight: 600;
+}
+
+.slip-footer {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+@media print {
+  nav {
+    display: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .slip-copy:not(:last-child) {
+    break-after: page;
+  }
+}

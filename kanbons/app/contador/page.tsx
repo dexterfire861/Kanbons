@@ -1,4 +1,5 @@
 import { listContador } from "@/lib/models/contador";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 
 function fmt(value: number | null | undefined) {
@@ -7,7 +8,7 @@ function fmt(value: number | null | undefined) {
 }
 
 export default async function ContadorPage() {
-  const rows = await listContador();
+  const rows = await timePage("/contador", () => listContador());
 
   return (
     <main className="p-6">

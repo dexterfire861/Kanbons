@@ -1,9 +1,10 @@
 import { listProducts } from "@/lib/models/products";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import { createProductAction, updateProductAction } from "./actions";
 
 export default async function ProductsPage() {
-  const rows = await listProducts();
+  const rows = await timePage("/products", () => listProducts());
 
   return (
     <main className="p-6">
@@ -18,7 +19,7 @@ export default async function ProductsPage() {
           { name: "Unit type", meaning: "How we pack it (roll, box, …)." },
           { name: "Customer unit", meaning: "How the customer names that unit." },
           { name: "Measurement", meaning: "Yards, pieces, or other." },
-          { name: "Price", meaning: "Price per unit (pre_uni)." },
+          { name: "Price", meaning: "Price per unit." },
         ]}
       />
 

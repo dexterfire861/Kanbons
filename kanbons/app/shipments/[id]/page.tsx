@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { listProducts } from "@/lib/models/products";
 import { getShipment } from "@/lib/models/shipments";
 import { listShipmentLines } from "@/lib/models/shipment_lines";
+import { SHIPMENT_UNIT_TYPES } from "@/lib/models/shipment_unit_types";
+import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import {
   createShipmentLineAction,
@@ -17,11 +19,13 @@ export default async function ShipmentDetailPage({
   const id = Number((await params).id);
   if (!Number.isFinite(id)) notFound();
 
-  const [shipment, lines, products] = await Promise.all([
-    getShipment(id),
-    listShipmentLines(id),
-    listProducts(),
-  ]);
+  const [shipment, lines, products] = await timePage(`/shipments/${id}`, () =>
+    Promise.all([
+      getShipment(id),
+      listShipmentLines(id),
+      listProducts(),
+    ])
+  );
   if (!shipment) notFound();
 
   return (
@@ -33,11 +37,12 @@ export default async function ShipmentDetailPage({
       </p>
       <PageIntro
         title={`Container ${shipment.number}`}
-        what={`${shipment.container_number ?? "No container number"} · ${shipment.country ?? "No country"}. Each row is a product that arrived on this container.`}
+        what={`${shipment.invoice_number ?? "No invoice number"} · ${shipment.country ?? "No country"}. Each row is a product that arrived on this container.`}
         columns={[
           { name: "Product", meaning: "SKU from our catalog." },
           { name: "Yards / pieces", meaning: "How much arrived." },
           { name: "Units", meaning: "How many packs / units." },
+          { name: "Type of unit", meaning: "Yards, pieces, sets, boxes, or bundles." },
         ]}
       />
 
@@ -59,6 +64,7 @@ export default async function ShipmentDetailPage({
               <th>Product</th>
               <th>Yards / pieces</th>
               <th>Units</th>
+              <th>Type of unit</th>
               <th className="actions" />
             </tr>
           </thead>
@@ -81,6 +87,16 @@ export default async function ShipmentDetailPage({
               </td>
               <td>
                 <input form="add-ship-line" name="unit" placeholder="Units" />
+              </td>
+              <td>
+                <select form="add-ship-line" name="type_of_unit" defaultValue="">
+                  <option value="">Type of unit</option>
+                  {SHIPMENT_UNIT_TYPES.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
               </td>
               <td className="actions">
                 <button form="add-ship-line" type="submit" className="border border-zinc-800 px-2 py-1 text-sm">
@@ -112,6 +128,16 @@ export default async function ShipmentDetailPage({
                   </td>
                   <td>
                     <input form={form} name="unit" defaultValue={line.unit ?? ""} />
+                  </td>
+                  <td>
+                    <select form={form} name="type_of_unit" defaultValue={line.type_of_unit ?? ""}>
+                      <option value="">None</option>
+                      {SHIPMENT_UNIT_TYPES.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="actions">
                     <button form={form} type="submit" className="border border-zinc-400 px-2 py-1 text-sm">

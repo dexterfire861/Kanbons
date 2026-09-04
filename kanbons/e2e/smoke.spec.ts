@@ -37,11 +37,22 @@ for (const item of pages) {
 
 test("customers add form does not ask for an id", async ({ page }) => {
   await page.goto("/customers");
-  await expect(page.getByPlaceholder("Name")).toBeVisible();
-  await expect(page.locator("#add-customer input[name='id']")).toHaveCount(0);
-  await expect(page.locator('input[form="add-customer"][name="id"]')).toHaveCount(
-    0
-  );
+  await page.getByRole("button", { name: "Add customer" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Name", { exact: true })).toBeVisible();
+  await expect(dialog.locator("input[name='id']")).toHaveCount(0);
+});
+
+test("packing lists offer a new packing slip", async ({ page }) => {
+  await page.goto("/packing-lists");
+  await expect(page.getByRole("link", { name: "New packing slip" })).toBeVisible();
+  await page.getByRole("link", { name: "New packing slip" }).click();
+  await expect(page.getByRole("heading", { name: "New packing slip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm packing slip" })).toBeVisible();
+  await expect(page.getByText("How it will look")).toBeVisible();
+  await expect(page.getByText("KANBONS LLC")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Packing Slip" })).toBeVisible();
+  await expect(page.getByText("INFO@KANBONS.COM")).toBeVisible();
 });
 
 test("packing list lines are not dumped on the list page", async ({ page }) => {
@@ -64,6 +75,7 @@ test("shipment lines are not dumped on the list page", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Incoming containers" })
   ).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Invoice number" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Yards / pieces" })).toHaveCount(
     0
   );
