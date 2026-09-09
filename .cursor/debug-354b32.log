@@ -1,0 +1,7 @@
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"C","location":"lib/supabase.ts:timedFetch","message":"supabase http","data":{"label":"GET /rest/v1/products?select=id%2Cnum%2Cproduct&order=num.asc","ms":1038,"status":200,"contentLength":18951},"timestamp":1788986355574}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"E","location":"lib/models/products.ts:listProductOptions","message":"catalog options","data":{"ms":1071,"rowCount":302},"timestamp":1788986355588}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"C","location":"lib/supabase.ts:timedFetch","message":"supabase http","data":{"label":"GET /rest/v1/shipments?select=*&order=number.desc&limit=150","ms":1076,"status":200,"contentLength":20523},"timestamp":1788986355603}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"C","location":"lib/timing.ts:timePage","message":"page data load","data":{"path":"/shipments","ms":1093},"timestamp":1788986355611}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"A","location":"app/shipments/page.tsx","message":"shipment index sizes","data":{"rowCount":150,"productCount":302},"timestamp":1788986355612}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"A","location":"app/nav-timing.tsx","message":"client nav timing","data":{"pathname":"/shipments","ms":3454,"ttfb":2594,"kind":"first"},"timestamp":1788986357910}
+{"sessionId":"354b32","runId":"post-fix","hypothesisId":"A","location":"app/nav-timing.tsx","message":"client nav timing","data":{"pathname":"/shipments","ms":4,"kind":"client"},"timestamp":1788986357914}

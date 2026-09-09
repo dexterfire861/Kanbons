@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
+import { debugLog } from "@/lib/timing";
 import { ok, okList, okMaybe } from "./result";
 
 export type Product = Database["public"]["Tables"]["products"]["Row"];
@@ -9,8 +10,32 @@ export type ProductInsert = Omit<
 >;
 export type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
 
+export type ProductOption = Pick<Product, "id" | "num" | "product">;
+
 export async function listProducts(): Promise<Product[]> {
-  return okList(await supabase.from("products").select("*").order("num"));
+  const start = performance.now();
+  const rows = okList(await supabase.from("products").select("*").order("num"));
+  // #region agent log
+  debugLog("E", "lib/models/products.ts:listProducts", "catalog fetch", {
+    ms: Math.round(performance.now() - start),
+    rowCount: rows.length,
+  });
+  // #endregion
+  return rows;
+}
+
+export async function listProductOptions(): Promise<ProductOption[]> {
+  const start = performance.now();
+  const rows = okList(
+    await supabase.from("products").select("id, num, product").order("num")
+  );
+  // #region agent log
+  debugLog("E", "lib/models/products.ts:listProductOptions", "catalog options", {
+    ms: Math.round(performance.now() - start),
+    rowCount: rows.length,
+  });
+  // #endregion
+  return rows;
 }
 
 export async function getProduct(id: number): Promise<Product | null> {

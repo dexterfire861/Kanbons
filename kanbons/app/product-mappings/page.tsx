@@ -1,6 +1,7 @@
 import { listProductMappings } from "@/lib/models/product_mappings";
-import { listProducts } from "@/lib/models/products";
+import { listProductOptions } from "@/lib/models/products";
 import { timePage } from "@/lib/timing";
+import { Choice } from "@/app/ui/choice";
 import { PageIntro } from "@/app/ui/page-intro";
 import {
   createProductMappingAction,
@@ -9,8 +10,12 @@ import {
 
 export default async function ProductMappingsPage() {
   const [rows, products] = await timePage("/product-mappings", () =>
-    Promise.all([listProductMappings(), listProducts()])
+    Promise.all([listProductMappings(), listProductOptions()])
   );
+  const productOptions = products.map((product) => ({
+    id: product.id,
+    label: `${product.num} — ${product.product}`,
+  }));
 
   return (
     <main className="p-6">
@@ -94,14 +99,12 @@ export default async function ProductMappingsPage() {
                     <input form={form} name="item_code" defaultValue={row.item_code ?? ""} />
                   </td>
                   <td>
-                    <select form={form} name="product_id" defaultValue={row.product_id ?? ""}>
-                      <option value="">None</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.num} — {product.product}
-                        </option>
-                      ))}
-                    </select>
+                    <Choice
+                      form={form}
+                      name="product_id"
+                      options={productOptions}
+                      value={row.product_id}
+                    />
                   </td>
                   <td className="actions">
                     <button form={form} type="submit" className="border border-zinc-400 px-2 py-1 text-sm">

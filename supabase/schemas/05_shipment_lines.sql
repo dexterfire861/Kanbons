@@ -7,6 +7,10 @@ create table public.shipment_lines (
   yards_pcs numeric,
   unit integer,
   type_of_unit text
+    check (
+      type_of_unit is null
+      or type_of_unit in ('yards', 'pieces', 'sets', 'boxes', 'bundles')
+    )
 );
 
 create index shipment_lines_shipment_id_idx on public.shipment_lines (shipment_id);

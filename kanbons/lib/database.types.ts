@@ -202,6 +202,53 @@ export type Database = {
           },
         ]
       }
+      po_ingest_runs: {
+        Row: {
+          created_at: string
+          extracted_json: Json | null
+          failure_reason: string | null
+          gold_json: Json | null
+          id: number
+          packing_list_id: number | null
+          resolved_json: Json | null
+          source_filename: string
+          source_path: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_json?: Json | null
+          failure_reason?: string | null
+          gold_json?: Json | null
+          id?: never
+          packing_list_id?: number | null
+          resolved_json?: Json | null
+          source_filename: string
+          source_path: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          extracted_json?: Json | null
+          failure_reason?: string | null
+          gold_json?: Json | null
+          id?: never
+          packing_list_id?: number | null
+          resolved_json?: Json | null
+          source_filename?: string
+          source_path?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "po_ingest_runs_packing_list_id_fkey"
+            columns: ["packing_list_id"]
+            isOneToOne: false
+            referencedRelation: "packing_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_mappings: {
         Row: {
           client_name: string

@@ -13,9 +13,13 @@ export type ShipmentInsert = Omit<
 >;
 export type ShipmentUpdate = Database["public"]["Tables"]["shipments"]["Update"];
 
-export async function listShipments(): Promise<Shipment[]> {
+export async function listShipments(limit = 150): Promise<Shipment[]> {
   return okList(
-    await supabase.from("shipments").select("*").order("number", { ascending: false })
+    await supabase
+      .from("shipments")
+      .select("*")
+      .order("number", { ascending: false })
+      .limit(limit)
   );
 }
 

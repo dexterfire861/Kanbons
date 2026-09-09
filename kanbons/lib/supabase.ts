@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+import { debugLog } from "./timing";
 
 function requestLabel(input: RequestInfo | URL, init?: RequestInit): string {
   const raw =
@@ -22,13 +23,20 @@ async function timedFetch(
   init?: RequestInit
 ): Promise<Response> {
   const start = performance.now();
-  try {
-    return await fetch(input, init);
-  } finally {
-    console.log(
-      `[kanbons ${Math.round(performance.now() - start)}ms] ${requestLabel(input, init)}`
-    );
-  }
+  const label = requestLabel(input, init);
+  const response = await fetch(input, init);
+  const ms = Math.round(performance.now() - start);
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  console.log(`[kanbons ${ms}ms] ${label}`);
+  // #region agent log
+  debugLog("C", "lib/supabase.ts:timedFetch", "supabase http", {
+    label,
+    ms,
+    status: response.status,
+    contentLength,
+  });
+  // #endregion
+  return response;
 }
 
 export const supabase = createClient<Database>(

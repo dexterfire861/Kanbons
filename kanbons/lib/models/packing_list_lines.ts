@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
+import { debugLog } from "@/lib/timing";
 import { ok, okList } from "./result";
 
 export type PackingListLine =
@@ -16,13 +17,22 @@ export type PackingListLineTotal =
 export async function listPackingListLines(
   packingListId: number
 ): Promise<PackingListLineTotal[]> {
-  return okList(
+  const start = performance.now();
+  const rows = okList(
     await supabase
       .from("packing_list_line_totals")
       .select("*")
       .eq("packing_list_id", packingListId)
       .order("id")
   );
+  // #region agent log
+  debugLog("D", "lib/models/packing_list_lines.ts:listPackingListLines", "packing lines", {
+    packingListId,
+    ms: Math.round(performance.now() - start),
+    rowCount: rows.length,
+  });
+  // #endregion
+  return rows;
 }
 
 export async function createPackingListLine(

@@ -6,7 +6,20 @@ create table public.packing_lists (
   date date,
   ship_date date,
   customer_po text,
-  state text
+  state text,
+  status text not null default 'dispatched'
+    check (status in ('draft', 'confirmed', 'dispatched')),
+  dispatched_at timestamptz,
+  ship_to_name text,
+  ship_to_address text,
+  ship_to_city text,
+  ship_to_state text,
+  ship_to_zip text,
+  bill_to_name text,
+  bill_to_address text,
+  bill_to_city text,
+  bill_to_state text,
+  bill_to_zip text
 );
 
 create index packing_lists_num_pl_idx on public.packing_lists (num_pl);

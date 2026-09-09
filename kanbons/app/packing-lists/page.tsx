@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { listCustomers } from "@/lib/models/customers";
 import { listPackingLists } from "@/lib/models/packing_lists";
-import { timePage } from "@/lib/timing";
+import { debugLog, timePage } from "@/lib/timing";
+import { Choice } from "@/app/ui/choice";
 import { PageIntro } from "@/app/ui/page-intro";
 import { createPackingListAction, updatePackingListAction } from "./actions";
 
@@ -9,6 +10,17 @@ export default async function PackingListsPage() {
   const [rows, customers] = await timePage("/packing-lists", () =>
     Promise.all([listPackingLists(), listCustomers()])
   );
+  const customerOptions = customers.map((customer) => ({
+    id: customer.id,
+    label: customer.name,
+  }));
+  // #region agent log
+  debugLog("A", "app/packing-lists/page.tsx", "packing list index sizes", {
+    rowCount: rows.length,
+    customerCount: customers.length,
+    optionNodes: customers.length,
+  });
+  // #endregion
 
   return (
     <main className="p-6">
@@ -105,14 +117,12 @@ export default async function PackingListsPage() {
                     <input form={form} name="num_pl" defaultValue={row.num_pl} required />
                   </td>
                   <td>
-                    <select form={form} name="customer_id" defaultValue={row.customer_id ?? ""}>
-                      <option value="">None</option>
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </option>
-                      ))}
-                    </select>
+                    <Choice
+                      form={form}
+                      name="customer_id"
+                      options={customerOptions}
+                      value={row.customer_id}
+                    />
                   </td>
                   <td>
                     <input form={form} name="customer_po" defaultValue={row.customer_po ?? ""} />

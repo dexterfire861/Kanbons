@@ -1,1 +1,6 @@
 psycopg[binary]>=3.2
+# RESEARCH — scripts/po_ingest.py (install when you wire Docling, not this skeleton):
+# pydantic>=2
+# docling
+#   DocumentExtractor needs a VLM extra; see
+#   https://docling-project.github.io/docling/_generated/examples/extraction/

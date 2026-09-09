@@ -75,6 +75,17 @@ button {
   white-space: nowrap;
 }
 
+.sheet .choice {
+  width: auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .columns {
   margin: 0.75rem 0 1.25rem;
   display: grid;

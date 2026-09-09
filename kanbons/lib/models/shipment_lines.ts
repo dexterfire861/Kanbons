@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
+import { debugLog } from "@/lib/timing";
 import { ok, okList } from "./result";
 
 export {
@@ -18,13 +19,22 @@ export type ShipmentLineUpdate =
 export async function listShipmentLines(
   shipmentId: number
 ): Promise<ShipmentLine[]> {
-  return okList(
+  const start = performance.now();
+  const rows = okList(
     await supabase
       .from("shipment_lines")
       .select("*")
       .eq("shipment_id", shipmentId)
       .order("id")
   );
+  // #region agent log
+  debugLog("D", "lib/models/shipment_lines.ts:listShipmentLines", "container lines", {
+    shipmentId,
+    ms: Math.round(performance.now() - start),
+    rowCount: rows.length,
+  });
+  // #endregion
+  return rows;
 }
 
 export async function createShipmentLine(

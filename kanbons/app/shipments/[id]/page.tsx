@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { listProducts } from "@/lib/models/products";
+import { listProductOptions } from "@/lib/models/products";
 import { getShipment } from "@/lib/models/shipments";
 import { listShipmentLines } from "@/lib/models/shipment_lines";
 import { SHIPMENT_UNIT_TYPES } from "@/lib/models/shipment_unit_types";
-import { timePage } from "@/lib/timing";
+import { debugLog, timePage } from "@/lib/timing";
+import { Choice } from "@/app/ui/choice";
 import { PageIntro } from "@/app/ui/page-intro";
 import {
   createShipmentLineAction,
@@ -23,10 +24,22 @@ export default async function ShipmentDetailPage({
     Promise.all([
       getShipment(id),
       listShipmentLines(id),
-      listProducts(),
+      listProductOptions(),
     ])
   );
   if (!shipment) notFound();
+  const productOptions = products.map((product) => ({
+    id: product.id,
+    label: `${product.num} — ${product.product}`,
+  }));
+  // #region agent log
+  debugLog("A", "app/shipments/[id]/page.tsx", "container page sizes", {
+    shipmentId: id,
+    lineCount: lines.length,
+    productCount: products.length,
+    optionNodes: products.length,
+  });
+  // #endregion
 
   return (
     <main className="p-6">
@@ -114,14 +127,12 @@ export default async function ShipmentDetailPage({
                     <input type="hidden" form={form} name="shipment_id" value={shipment.id} />
                   </td>
                   <td>
-                    <select form={form} name="product_id" defaultValue={line.product_id ?? ""}>
-                      <option value="">None</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.num} — {product.product}
-                        </option>
-                      ))}
-                    </select>
+                    <Choice
+                      form={form}
+                      name="product_id"
+                      options={productOptions}
+                      value={line.product_id}
+                    />
                   </td>
                   <td>
                     <input form={form} name="yards_pcs" defaultValue={line.yards_pcs ?? ""} />

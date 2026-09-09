@@ -1,21 +1,27 @@
 import Link from "next/link";
-import { listProducts } from "@/lib/models/products";
+import { listProductOptions } from "@/lib/models/products";
 import { listShipments } from "@/lib/models/shipments";
-import { timePage } from "@/lib/timing";
+import { debugLog, timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import { ShipmentAddDialog } from "./add-dialog";
 import { updateShipmentAction } from "./actions";
 
 export default async function ShipmentsPage() {
   const [rows, products] = await timePage("/shipments", () =>
-    Promise.all([listShipments(), listProducts()])
+    Promise.all([listShipments(), listProductOptions()])
   );
+  // #region agent log
+  debugLog("A", "app/shipments/page.tsx", "shipment index sizes", {
+    rowCount: rows.length,
+    productCount: products.length,
+  });
+  // #endregion
 
   return (
     <main className="p-6">
       <PageIntro
         title="Incoming containers"
-        what="Shipments we received. Add a container with all of its products at once. Open Lines to change them later."
+        what="Shipments we received. Showing the 150 most recent. Add a container with all of its products at once. Open Lines to change them later."
         columns={[
           { name: "ID", meaning: "Assigned by the system." },
           { name: "Number", meaning: "Our shipping number." },

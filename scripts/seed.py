@@ -135,6 +135,30 @@ def as_text(v) -> str | None:
     return s
 
 
+SHIPMENT_UNIT_TYPES = {"yards", "pieces", "sets", "boxes", "bundles"}
+SHIPMENT_UNIT_ALIASES = {
+    "yard": "yards",
+    "yd": "yards",
+    "yds": "yards",
+    "piece": "pieces",
+    "pc": "pieces",
+    "pcs": "pieces",
+    "set": "sets",
+    "box": "boxes",
+    "bundle": "bundles",
+}
+
+
+def shipment_unit(v) -> str | None:
+    raw = as_text(v)
+    if raw is None:
+        return None
+    key = raw.lower()
+    if key in SHIPMENT_UNIT_TYPES:
+        return key
+    return SHIPMENT_UNIT_ALIASES.get(key)
+
+
 def as_int(v) -> int | None:
     s = as_text(v)
     if s is None:
@@ -598,7 +622,7 @@ def seed() -> None:
                     shipments[number] = {
                         "number": number,
                         "country": as_text(row.get(2)),
-                        "container_number": as_text(row.get(3)),
+                        "invoice_number": as_text(row.get(3)),
                         "arrival_date": as_date(row.get(5)),
                         "departure_date": as_date(row.get(6)),
                     }
@@ -615,16 +639,16 @@ def seed() -> None:
                         "product": pname,
                         "yards_pcs": as_num(row.get(8)),
                         "unit": as_int(row.get(9)),
-                        "type_of_unit": as_text(row.get(10)),
+                        "type_of_unit": shipment_unit(row.get(10)),
                     }
                 )
 
             cur.executemany(
                 """
                 insert into public.shipments
-                  (number, country, container_number, arrival_date, departure_date)
+                  (number, country, invoice_number, arrival_date, departure_date)
                 values
-                  (%(number)s, %(country)s, %(container_number)s, %(arrival_date)s, %(departure_date)s)
+                  (%(number)s, %(country)s, %(invoice_number)s, %(arrival_date)s, %(departure_date)s)
                 """,
                 list(shipments.values()),
             )
