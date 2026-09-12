@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 data/po_ingest/
+data/po_eval/
+training_data/
+.hf_cache/
