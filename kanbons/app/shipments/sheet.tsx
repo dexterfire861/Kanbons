@@ -21,7 +21,7 @@ function fieldsOf(row: Shipment) {
 }
 
 function Row({ row }: { row: Shipment }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
     required: ["number"],
@@ -29,7 +29,7 @@ function Row({ row }: { row: Shipment }) {
   });
 
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <td>
         <Cell required value={values.number} onChange={(value) => setField("number", value)} onSave={save} />
       </td>

@@ -146,14 +146,14 @@ function ExistingRow({
   line: LineRow;
   packingListId: number;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(line),
     extra: { id: str(line.id), packing_list_id: String(packingListId) },
     required: ["product_id"],
     action: updatePackingListLineAction,
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <LineFields
         values={values}
         setField={setField}
@@ -171,7 +171,7 @@ function NewRow({
   packingListId: number;
   onCreated: (line: LineRow) => void;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: empty,
     extra: { packing_list_id: String(packingListId) },
     required: ["product_id"],
@@ -179,7 +179,7 @@ function NewRow({
     onSaved: (result) => onCreated(fromCreated(result as PackingListLine)),
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <LineFields values={values} setField={setField} save={save} />
     </AutosaveRow>
   );

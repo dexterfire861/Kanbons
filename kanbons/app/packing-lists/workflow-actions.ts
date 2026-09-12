@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requiredNum, requiredText, text } from "@/lib/form";
+import { jsonArray, requiredNum, requiredText, text } from "@/lib/form";
 import {
   confirmPackingSlip,
   dispatchPackingSlip,
@@ -31,9 +31,7 @@ type PostedLine = {
 };
 
 export async function createAndConfirmFromPoAction(formData: FormData) {
-  let posted: PostedLine[] = [];
-  const raw = text(formData, "lines");
-  if (raw) posted = JSON.parse(raw) as PostedLine[];
+  const posted = jsonArray<PostedLine>(text(formData, "lines"));
   const lines: PurchaseOrderLine[] = posted
     .filter((line) => line.asWritten || line.unit)
     .map((line) => ({
@@ -64,7 +62,7 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
     );
   }
   const row = await persistDraft(slip);
-  await confirmPackingSlip(row.id, []);
+  await confirmPackingSlip(row.id);
   revalidatePath("/packing-lists");
   revalidatePath(`/packing-lists/${row.id}`);
   redirect(`/packing-lists/${row.id}`);
@@ -72,18 +70,7 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
 
 export async function confirmSlipAction(formData: FormData) {
   const id = requiredNum(formData, "id");
-  const lineIds = formData.getAll("line_id").map((value) => Number(value));
-  const productIds = formData.getAll("product_id").map((value) => Number(value));
-  const fixes = lineIds
-    .map((lineId, index) => ({ lineId, productId: productIds[index] }))
-    .filter(
-      (fix) =>
-        Number.isFinite(fix.lineId) &&
-        fix.lineId > 0 &&
-        Number.isFinite(fix.productId) &&
-        fix.productId > 0
-    );
-  await confirmPackingSlip(id, fixes);
+  await confirmPackingSlip(id);
   revalidatePath("/packing-lists");
   revalidatePath(`/packing-lists/${id}`);
   redirect(`/packing-lists/${id}`);

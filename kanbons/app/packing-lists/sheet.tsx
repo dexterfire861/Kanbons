@@ -48,23 +48,29 @@ function ListFields({
   setField,
   save,
   customerLabel,
+  assignNumber,
 }: {
   values: Fields;
   setField: (name: keyof Fields, value: string) => void;
   save: () => void;
   customerLabel?: string | null;
+  assignNumber?: boolean;
 }) {
   const customerId = values.customer_id ? Number(values.customer_id) : null;
   return (
     <>
       <td>
-        <Cell
-          required
-          placeholder="Number"
-          value={values.num_pl}
-          onChange={(value) => setField("num_pl", value)}
-          onSave={save}
-        />
+        {assignNumber ? (
+          <input disabled placeholder="Assigned on save" />
+        ) : (
+          <Cell
+            required
+            placeholder="Number"
+            value={values.num_pl}
+            onChange={(value) => setField("num_pl", value)}
+            onSave={save}
+          />
+        )}
       </td>
       <td>
         <Choice
@@ -105,14 +111,14 @@ function ListFields({
 }
 
 function ExistingRow({ row }: { row: PackingList }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
     required: ["num_pl"],
     action: updatePackingListAction,
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <ListFields
         values={values}
         setField={setField}
@@ -130,16 +136,20 @@ function ExistingRow({ row }: { row: PackingList }) {
 }
 
 function NewRow({ onCreated }: { onCreated: (row: PackingList) => void }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: empty,
-    required: ["num_pl"],
     action: createPackingListAction,
     onSaved: (result) => onCreated(result as PackingList),
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
-      <ListFields values={values} setField={setField} save={save} />
-      <td className="text-zinc-400">Confirmed</td>
+    <AutosaveRow state={state} error={error} onSave={save}>
+      <ListFields
+        values={values}
+        setField={setField}
+        save={save}
+        assignNumber
+      />
+      <td className="text-zinc-400">Draft</td>
       <td />
     </AutosaveRow>
   );

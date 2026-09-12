@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList } from "./result";
 
+// Written by PO-ingestion/process.py today. The UI does not read these rows yet.
+
 export type PurchaseOrderLine =
   Database["public"]["Tables"]["purchase_order_lines"]["Row"];
 export type PurchaseOrderLineInsert = Omit<

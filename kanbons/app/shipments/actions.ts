@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { num, requiredNum, text } from "@/lib/form";
+import { jsonArray, num, requiredNum, text } from "@/lib/form";
 import { getProduct } from "@/lib/models/products";
 import { createShipmentWithLines, updateShipment } from "@/lib/models/shipments";
 
@@ -23,11 +23,7 @@ type PostedLine = {
 };
 
 export async function createShipmentAction(formData: FormData) {
-  let posted: PostedLine[] = [];
-  const raw = text(formData, "lines");
-  if (raw) {
-    posted = JSON.parse(raw) as PostedLine[];
-  }
+  const posted = jsonArray<PostedLine>(text(formData, "lines"));
   const lines = [];
   for (const line of posted) {
     const productId = line.product_id ?? null;

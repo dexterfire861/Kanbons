@@ -1,3 +1,7 @@
+import type { MatchProduct } from "./products";
+
+export type { MatchProduct };
+
 export type Address = {
   name: string | null;
   address: string | null;
@@ -14,7 +18,7 @@ export type PurchaseOrderLine = {
   productId: number | null;
 };
 
-export type PurchaseOrder = {
+export type PurchaseOrderInput = {
   customerId: number;
   customerPo: string;
   date: string | null;
@@ -49,13 +53,6 @@ export type PackingSlip = {
   shipTo: Address;
   billTo: Address;
   lines: PackingSlipLine[];
-};
-
-export type MatchProduct = {
-  id: number;
-  num: string;
-  product: string;
-  pre_uni: number | null;
 };
 
 export type MatchMapping = {

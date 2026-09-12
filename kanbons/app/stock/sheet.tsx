@@ -19,7 +19,7 @@ function ExistingRow({
   row: Stock;
   product?: ProductLabel;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: {
       quantity: str(row.quantity),
       contador_physical: str(row.contador_physical),
@@ -32,7 +32,7 @@ function ExistingRow({
     : "";
 
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <td className="num">{product?.num ?? row.product_id}</td>
       <td>{product?.product ?? ""}</td>
       <td>
@@ -57,7 +57,7 @@ function NewRow({
   used: Set<number>;
   onCreated: (row: Stock) => void;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: { product_id: "", quantity: "", contador_physical: "" },
     required: ["product_id"],
     action: createStockAction,
@@ -66,7 +66,7 @@ function NewRow({
   const productId = values.product_id ? Number(values.product_id) : null;
 
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <td colSpan={2}>
         <Choice
           value={productId}

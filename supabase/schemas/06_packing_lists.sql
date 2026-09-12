@@ -7,7 +7,7 @@ create table public.packing_lists (
   ship_date date,
   customer_po text,
   state text,
-  status text not null default 'dispatched'
+  status text not null default 'draft'
     check (status in ('draft', 'confirmed', 'dispatched')),
   dispatched_at timestamptz,
   ship_to_name text,

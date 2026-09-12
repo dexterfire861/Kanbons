@@ -26,6 +26,7 @@ export function useAutosave<T extends Record<string, string>>(opts: {
   const valuesRef = useRef(opts.initial);
   const saved = useRef(snapshot(opts.initial));
   const [state, setState] = useState<SaveState>("idle");
+  const [error, setError] = useState("");
 
   function setField(name: keyof T, value: string) {
     const next = { ...valuesRef.current, [name]: value };
@@ -40,6 +41,7 @@ export function useAutosave<T extends Record<string, string>>(opts: {
       return;
     }
     setState("saving");
+    setError("");
     const formData = new FormData();
     for (const [key, value] of Object.entries(opts.extra ?? {})) {
       formData.set(key, value);
@@ -52,20 +54,23 @@ export function useAutosave<T extends Record<string, string>>(opts: {
       saved.current = snapshot(current);
       setState("saved");
       opts.onSaved?.(result, current);
-    } catch {
+    } catch (caught) {
       setState("error");
+      setError(caught instanceof Error ? caught.message : "");
     }
   }
 
-  return { values, setField, save, state };
+  return { values, setField, save, state, error };
 }
 
 export function AutosaveRow({
   state,
+  error,
   onSave,
   children,
 }: {
   state: SaveState;
+  error?: string;
   onSave: () => void;
   children: ReactNode;
 }) {
@@ -84,7 +89,7 @@ export function AutosaveRow({
           : state === "saved"
             ? "Saved"
             : state === "error"
-              ? "Couldn't save"
+              ? error || "Couldn't save"
               : ""}
       </td>
     </tr>

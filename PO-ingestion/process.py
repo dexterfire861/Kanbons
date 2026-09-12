@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OCR a PO, map it to Pydantic, save it, and create a packing list if ready.
+"""Customer PO → purchase order → packing list + pick PDF if ready.
 
     .venv/bin/python PO-ingestion/process.py "training_data/B084-035 Kanbons PO-1.pdf"
 """
@@ -8,12 +8,10 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 from models import PurchaseOrder, PurchaseOrderLine
@@ -25,219 +23,160 @@ DATABASE_URL = os.environ.get(
 )
 
 
-def _norm(value: str | None) -> str:
-    return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
+def _fold(value: str | None) -> str:
+    return (value or "").strip().casefold()
 
 
-def _as_float(value: object) -> float | None:
-    if value is None:
-        return None
-    text = str(value).replace(",", "").replace("$", "").strip()
-    if not text:
-        return None
-    match = re.search(r"\d+(?:\.\d+)?", text)
-    return float(match.group()) if match else None
-
-
-def _excel_or_print_date(value: str | None) -> str | None:
-    if not value:
-        return None
-    text = str(value).strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}", text):
-        return text[:10]
-    for fmt in (r"(\d{1,2})/(\d{1,2})/(\d{4})",):
-        match = re.search(fmt, text)
-        if match:
-            month, day, year = match.groups()
-            return f"{year}-{int(month):02d}-{int(day):02d}"
-    return None
-
-
-def _row_get(row: dict, *names: str) -> str:
-    """Pick a cell by column suffix (Docling often prefixes headers)."""
-    items = [(str(k).strip().lower(), v) for k, v in row.items()]
-    for name in names:
-        for key, value in items:
-            if key == name or key.endswith("." + name) or key.endswith(" " + name):
-                if value not in (None, ""):
-                    return str(value).strip()
+def _cell(row: dict, ending: str) -> str:
+    want = ending.casefold()
+    for key, value in row.items():
+        name = str(key).strip().casefold()
+        if name == want or name.endswith("." + want) or name.endswith(" " + want):
+            if value not in (None, ""):
+                return str(value).strip()
     return ""
 
 
-def _split_part_and_desc(blob: str) -> tuple[str | None, str | None]:
+def _as_number(text: str) -> float | None:
+    cleaned = text.replace(",", "").strip()
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _as_date(text: str) -> str | None:
+    parts = text.replace("-", "/").split("/")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    month, day, year = parts
+    if len(year) != 4:
+        return None
+    return f"{year}-{int(month):02d}-{int(day):02d}"
+
+
+def _after_label(text: str, label: str) -> str:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if label not in line:
+            continue
+        rest = line.split(label, 1)[1].strip().lstrip(":").strip()
+        if rest:
+            return rest
+        for nxt in lines[index + 1 :]:
+            if nxt.strip():
+                return nxt.strip()
+    return ""
+
+
+def _split_code_and_name(blob: str) -> tuple[str | None, str | None]:
     text = blob.strip()
     if not text:
         return None, None
-    match = re.match(r"^([0-9][0-9A-Z./-]{4,})\s+(.+)$", text)
-    if match:
-        return match.group(1), match.group(2).strip()
-    if re.match(r"^[0-9][0-9A-Z./-]{4,}$", text):
-        return text, None
-    return None, text
+    sep = "\n" if "\n" in text else " "
+    first, _, rest = text.partition(sep)
+    return first.strip() or None, rest.replace("\n", " ").strip() or None
 
 
-def _lines_from_tables(tables: list[dict]) -> list[PurchaseOrderLine]:
-    lines: list[PurchaseOrderLine] = []
-    for table in tables:
-        for row in table.get("rows") or []:
-            if not isinstance(row, dict):
-                continue
-            joined = " ".join(str(v) for v in row.values() if v not in (None, ""))
-            if re.search(r"part number|description|quantity|item #", joined, re.I):
-                continue
-            if re.match(r"^\s*\d{3}\s*$", joined):
-                continue
-            part_blob = _row_get(
-                row, "part number description", "part number", "item code", "description"
-            )
-            item_code, description = _split_part_and_desc(part_blob)
-            if not description:
-                description = _row_get(row, "description") or description
-            if not item_code:
-                item_code = _row_get(row, "part number", "item code") or item_code
-            qty_blob = _row_get(row, "quantity", "qty")
-            um = None
-            qty_um = re.match(
-                r"^\s*([\d,]+(?:\.\d+)?)\s*([A-Za-z]{1,6})?\s*$", qty_blob
-            )
-            quantity = _as_float(qty_um.group(1) if qty_um else qty_blob)
-            if qty_um and qty_um.group(2):
-                um = qty_um.group(2)
-            um = um or _row_get(row, "um", "uom") or None
-            if not description and not item_code and quantity is None:
-                continue
-            if quantity is None:
-                continue
-            if description and (
-                len(description) > 160
-                or re.search(
-                    r"purchase order|line item total|order value|comments:",
-                    description,
-                    re.I,
-                )
-            ):
-                continue
-            lines.append(
-                PurchaseOrderLine(
-                    description=description,
-                    item_code=item_code,
-                    quantity=quantity,
-                    um=um,
-                    unit_price=_as_float(
-                        _row_get(row, "unit price/per", "unit price", "price")
-                    ),
-                    ext_amount=_as_float(
-                        _row_get(row, "ext. amt", "ext", "amount")
-                    ),
-                )
-            )
-    return lines
+def _is_part_number(word: str) -> bool:
+    return bool(word) and word[0].isdigit() and "-" in word
 
 
-def _lines_from_text(text: str) -> list[PurchaseOrderLine]:
-    lines: list[PurchaseOrderLine] = []
-    pattern = re.compile(
-        r"^\s*(?:\d{3}\s+)?([0-9][0-9A-Z.-]{5,})\s+(\d[\d,]*(?:\.\d+)?)\s+([A-Za-z]{1,6})?\b",
-        re.M,
-    )
-    for match in pattern.finditer(text):
-        rest = text[match.end() : match.end() + 160]
-        desc = re.search(r"\n([A-Z0-9][^\n]{2,50})\n", rest)
-        lines.append(
-            PurchaseOrderLine(
-                item_code=match.group(1),
-                quantity=_as_float(match.group(2)),
-                um=match.group(3),
-                description=desc.group(1).strip() if desc else None,
-            )
-        )
-    return lines
+def _peel_wrap(blob: str) -> tuple[str | None, str | None]:
+    words = blob.split()
+    for index, word in enumerate(words):
+        if _is_part_number(word):
+            before = " ".join(words[:index]).strip()
+            after = " ".join(words[index:]).strip()
+            if before and after:
+                return before, after
+            return None, None
+    return None, None
 
 
-def _header_from_text(text: str, po: PurchaseOrder) -> None:
-    po_match = re.search(r"\b(B\d{3}-\d{3})\b", text, re.I)
-    if po_match:
-        po.customer_po = po_match.group(1).upper()
-    dates = re.findall(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", text)
-    if dates:
-        po.date = _excel_or_print_date(dates[0])
-        po.ship_date = _excel_or_print_date(dates[1] if len(dates) > 1 else dates[0])
-    if re.search(r"KANBONS", text, re.I):
-        po.vendor_name = "KANBONS LLC"
-    city = re.search(r"\b(CAIRO)\s+(GA)\s+(\d{5})\b", text, re.I)
-    if city:
-        po.ship_to_city = city.group(1).title()
-        po.ship_to_state = city.group(2).upper()
-        po.ship_to_zip = city.group(3)
-    addr = re.search(r"\b(\d{3,5}\s+20TH ST SE)\b", text, re.I)
-    if addr:
-        po.ship_to_address = addr.group(1).title().replace("Se", "SE")
-    deliver = re.search(
-        r"Deliver To:\s*([^\n]+)", text, re.I
-    )
-    if deliver:
-        name = deliver.group(1).strip()
-        if name and not re.search(r"contact|phone", name, re.I):
-            po.ship_to_name = name.split("  ")[0].strip()
-    if not po.ship_to_name and re.search(r"WOODHAVEN|UPHOLSTERY-CAIRO", text, re.I):
-        po.ship_to_name = "Woodhaven Furniture"
+def _apply_wraps(lines: list[PurchaseOrderLine]) -> None:
+    for index, line in enumerate(lines[:-1]):
+        if line.description:
+            continue
+        nxt = lines[index + 1]
+        blob = f"{nxt.item_code or ''} {nxt.description or ''}".strip()
+        stolen, rest = _peel_wrap(blob)
+        if not stolen or not rest:
+            continue
+        line.description = stolen
+        nxt.item_code, nxt.description = _split_code_and_name(rest)
 
 
 def parse_purchase_order(dump: dict, source: Path) -> PurchaseOrder:
-    po = PurchaseOrder(
-        source_path=str(source.resolve()),
-        ocr_markdown=dump.get("markdown") or "",
-    )
-    blob = "\n".join(
-        [
-            dump.get("markdown") or "",
-            dump.get("text") or "",
-        ]
-    )
-    _header_from_text(blob, po)
-    lines = _lines_from_tables(dump.get("tables") or [])
-    if not lines:
-        lines = _lines_from_text(blob)
-    po.lines = lines
+    markdown = dump.get("markdown") or ""
+    po = PurchaseOrder(source_path=str(source.resolve()), ocr_markdown=markdown)
+
+    vendor = _after_label(markdown, "Vendor")
+    deliver = _after_label(markdown, "Deliver To")
+    if "Deliver To" in vendor:
+        vendor, deliver = [part.strip() for part in vendor.split("Deliver To", 1)]
+    po.customer_po = _after_label(markdown, "Order Number") or None
+    po.date = _as_date(_after_label(markdown, "Order Date"))
+    po.ship_date = po.date
+    po.vendor_name = vendor.lstrip(":").strip() or None
+    po.ship_to_name = deliver.lstrip(":").strip() or None
+
+    parse_issues: list[str] = []
+    tables = dump.get("tables") or []
+    rows = tables[0].get("rows") if tables else []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        item = _cell(row, "item")
+        if not (item.isdigit() and len(item) == 3):
+            continue
+        blob = _cell(row, "part number description") or _cell(row, "description")
+        item_code, description = _split_code_and_name(blob)
+        quantity = _as_number(_cell(row, "quantity"))
+        if not item_code or quantity is None:
+            parse_issues.append(f"Could not read line: {item} {blob}")
+            continue
+        po.lines.append(
+            PurchaseOrderLine(
+                item_code=item_code,
+                description=description,
+                quantity=quantity,
+                um=_cell(row, "um") or None,
+            )
+        )
+    _apply_wraps(po.lines)
+    po.issues = parse_issues
     return po
 
 
-def _fuzzy_product_id(
-    needle: str,
-    products: list[dict],
-    mappings: list[dict],
-) -> int | None:
-    if not needle:
+def _exact_product_id(needle: str, catalog: list[tuple[str, int]]) -> int | None:
+    folded = _fold(needle)
+    if not folded:
         return None
-    for product in products:
-        if _norm(product["num"]) == needle or _norm(product["product"]) == needle:
-            return int(product["id"])
-    for mapping in mappings:
-        if mapping["product_id"] is None:
-            continue
-        if (
-            _norm(mapping["item_code"]) == needle
-            or _norm(mapping["client_name"]) == needle
-            or _norm(mapping["kanbons_name"]) == needle
-        ):
-            return int(mapping["product_id"])
-    if len(needle) < 4:
-        return None
-    close = []
-    for mapping in mappings:
-        if mapping["product_id"] is None:
-            continue
-        client = _norm(mapping["client_name"])
-        ours = _norm(mapping["kanbons_name"])
-        if (len(client) >= 4 and (needle in client or client in needle)) or (
-            len(ours) >= 4 and (needle in ours or ours in needle)
-        ):
-            close.append(int(mapping["product_id"]))
-    close = list(dict.fromkeys(close))
-    return close[0] if len(close) == 1 else None
+    hits = [pid for name, pid in catalog if name == folded]
+    return hits[0] if len(hits) == 1 else None
 
 
-def match_catalog(po: PurchaseOrder, conn) -> None:
+def _contains_product_id(blob: str, catalog: list[tuple[str, int]]) -> int | None | str:
+    folded = _fold(blob)
+    if len(folded) < 20:
+        return None
+    hits = [
+        pid
+        for name, pid in catalog
+        if len(name) >= 4 and name in folded
+    ]
+    hits = list(dict.fromkeys(hits))
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        return "many"
+    return None
+
+
+def match_catalog(po: PurchaseOrder, conn) -> list[str]:
     products = [
         dict(r)
         for r in conn.execute(
@@ -247,37 +186,49 @@ def match_catalog(po: PurchaseOrder, conn) -> None:
     mappings = [
         dict(r)
         for r in conn.execute(
-            "select client_name, kanbons_name, item_code, product_id from public.product_mappings"
+            "select client_name, kanbons_name, product_id from public.product_mappings"
         ).fetchall()
     ]
+    skus = [(_fold(p["num"]), int(p["id"])) for p in products if p["num"]]
+    names = [(_fold(p["product"]), int(p["id"])) for p in products if p["product"]]
+    for mapping in mappings:
+        if mapping["product_id"] is None:
+            continue
+        pid = int(mapping["product_id"])
+        if mapping["client_name"]:
+            names.append((_fold(mapping["client_name"]), pid))
+        if mapping["kanbons_name"]:
+            names.append((_fold(mapping["kanbons_name"]), pid))
+    catalog = skus + names
     by_id = {int(p["id"]): p for p in products}
+
+    extra: list[str] = []
     for line in po.lines:
-        product_id = _fuzzy_product_id(_norm(line.item_code), products, mappings)
+        blob = f"{line.item_code or ''} {line.description or ''}".strip()
+        product_id = _exact_product_id(line.item_code or "", skus)
         if product_id is None:
-            product_id = _fuzzy_product_id(_norm(line.description), products, mappings)
+            product_id = _exact_product_id(line.description or "", names)
+        if product_id is None:
+            contained = _contains_product_id(blob, catalog)
+            if contained == "many":
+                extra.append(f"Too many matches in: {blob}")
+            elif isinstance(contained, int):
+                product_id = contained
         line.product_id = product_id
         product = by_id.get(product_id) if product_id else None
         if product:
             line.sku = product["num"]
             line.product_name = product["product"]
+
     customers = [
         dict(r)
         for r in conn.execute("select id, name from public.customers").fetchall()
     ]
-    needle = _norm(po.ship_to_name)
-    if needle:
-        hits = [c for c in customers if _norm(c["name"]) == needle]
-        if len(hits) == 1:
-            po.customer_id = int(hits[0]["id"])
-        elif len(needle) >= 4:
-            close = [
-                c
-                for c in customers
-                if len(_norm(c["name"])) >= 4
-                and (needle in _norm(c["name"]) or _norm(c["name"]) in needle)
-            ]
-            if len(close) == 1:
-                po.customer_id = int(close[0]["id"])
+    ship = _fold(po.ship_to_name)
+    hits = [c for c in customers if _fold(c["name"]) == ship]
+    if len(hits) == 1:
+        po.customer_id = int(hits[0]["id"])
+    return extra
 
 
 def save_purchase_order(conn, po: PurchaseOrder) -> int:
@@ -298,10 +249,10 @@ def save_purchase_order(conn, po: PurchaseOrder) -> int:
             po.ship_date,
             po.vendor_name,
             po.ship_to_name,
-            po.ship_to_address,
-            po.ship_to_city,
-            po.ship_to_state,
-            po.ship_to_zip,
+            None,
+            None,
+            None,
+            None,
             po.source_path,
             po.ocr_markdown,
             po.status,
@@ -334,40 +285,36 @@ def save_purchase_order(conn, po: PurchaseOrder) -> int:
 
 
 def save_packing_list(conn, po: PurchaseOrder) -> tuple[int, int]:
-    next_num = conn.execute(
+    nxt = conn.execute(
         "select coalesce(max(num_pl), 0) + 1 as n from public.packing_lists"
     ).fetchone()
-    assert next_num is not None
-    num_pl = int(next_num["n"])
-    customer_name = None
+    assert nxt is not None
+    num_pl = int(nxt["n"])
+    customer_name = po.ship_to_name
     if po.customer_id:
         row = conn.execute(
             "select name from public.customers where id = %s", (po.customer_id,)
         ).fetchone()
-        customer_name = row["name"] if row else None
+        if row:
+            customer_name = row["name"]
     header = conn.execute(
         """
         insert into public.packing_lists (
           num_pl, customer_id, customer, customer_po, date, ship_date, state,
-          status,
-          ship_to_name, ship_to_address, ship_to_city, ship_to_state, ship_to_zip
+          status, ship_to_name
         )
-        values (%s, %s, %s, %s, %s, %s, %s, 'confirmed', %s, %s, %s, %s, %s)
+        values (%s, %s, %s, %s, %s, %s, %s, 'confirmed', %s)
         returning id, num_pl
         """,
         (
             num_pl,
             po.customer_id,
-            customer_name or po.ship_to_name,
+            customer_name,
             po.customer_po,
             po.date,
             po.ship_date,
-            po.ship_to_state,
+            None,
             po.ship_to_name,
-            po.ship_to_address,
-            po.ship_to_city,
-            po.ship_to_state,
-            po.ship_to_zip,
         ),
     ).fetchone()
     assert header is not None
@@ -403,7 +350,6 @@ def save_packing_list(conn, po: PurchaseOrder) -> tuple[int, int]:
 def write_pick_pdf(path: Path, po: PurchaseOrder, num_pl: int) -> Path:
     dest = OUT_DIR / path.stem
     dest.mkdir(parents=True, exist_ok=True)
-    pdf_path = dest / "pick.pdf"
     lines = [
         f"Warehouse pick — packing list {num_pl}",
         f"PO {po.customer_po or '—'}",
@@ -411,19 +357,12 @@ def write_pick_pdf(path: Path, po: PurchaseOrder, num_pl: int) -> Path:
         f"{'SKU':<16} {'Our name':<40} {'Qty':>10}",
         "-" * 70,
     ]
-    unmatched = []
     for line in po.lines:
-        if line.product_id and line.sku:
-            lines.append(
-                f"{line.sku:<16} {(line.product_name or '')[:40]:<40} {line.quantity or 0:>10}"
-            )
-        else:
-            unmatched.append(line.description or line.item_code or "blank")
-    if unmatched:
-        lines.append("")
-        lines.append("Needs a Name match:")
-        lines.extend(f"  - {name}" for name in unmatched)
+        lines.append(
+            f"{(line.sku or ''):<16} {(line.product_name or '')[:40]:<40} {line.quantity or 0:>10}"
+        )
     (dest / "pick.txt").write_text("\n".join(lines) + "\n")
+    pdf_path = dest / "pick.pdf"
     _simple_pdf(pdf_path, lines)
     return pdf_path
 
@@ -464,6 +403,23 @@ def _simple_pdf(path: Path, lines: list[str]) -> None:
     path.write_bytes(out)
 
 
+def finish_issues(po: PurchaseOrder, extra: list[str]) -> None:
+    parse_issues = list(po.issues)
+    po.apply_issues()
+    too_many = [item for item in extra if item.startswith("Too many matches in: ")]
+    skip_desc = {item.split(": ", 1)[1] for item in too_many}
+    kept = [
+        issue
+        for issue in po.issues
+        if not (
+            issue.startswith("No name match for: ")
+            and issue.split(": ", 1)[1] in skip_desc
+        )
+    ]
+    po.issues = parse_issues + extra + kept
+    po.status = "ready" if not po.issues else "needs_review"
+
+
 def process(path: Path) -> PurchaseOrder:
     import psycopg
     from psycopg.rows import dict_row
@@ -473,8 +429,8 @@ def process(path: Path) -> PurchaseOrder:
     dest = save_dump(source, dump)
     po = parse_purchase_order(dump, source)
     with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
-        match_catalog(po, conn)
-        po.apply_issues()
+        extra = match_catalog(po, conn)
+        finish_issues(po, extra)
         po_id = save_purchase_order(conn, po)
         packing_list_id = None
         num_pl = None
@@ -488,18 +444,20 @@ def process(path: Path) -> PurchaseOrder:
             pick = write_pick_pdf(source, po, num_pl)
         conn.commit()
     (dest / "parsed.json").write_text(po.model_dump_json(indent=2) + "\n")
-    print(json.dumps(
-        {
-            "purchase_order_id": po_id,
-            "status": po.status,
-            "issues": po.issues,
-            "packing_list_id": packing_list_id,
-            "num_pl": num_pl,
-            "pick_pdf": str(pick) if pick else None,
-            "dump": str(dest),
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "purchase_order_id": po_id,
+                "status": po.status,
+                "issues": po.issues,
+                "packing_list_id": packing_list_id,
+                "num_pl": num_pl,
+                "pick_pdf": str(pick) if pick else None,
+                "dump": str(dest),
+            },
+            indent=2,
+        )
+    )
     if po.issues:
         print("\nNeeds manual intervention:")
         for issue in po.issues:

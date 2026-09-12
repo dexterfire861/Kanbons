@@ -68,28 +68,28 @@ function ProductFields({
 }
 
 function ExistingRow({ row }: { row: Product }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
     required: ["num", "product"],
     action: updateProductAction,
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <ProductFields values={values} setField={setField} save={save} />
     </AutosaveRow>
   );
 }
 
 function NewRow({ onCreated }: { onCreated: (row: Product) => void }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: empty,
     required: ["num", "product"],
     action: createProductAction,
     onSaved: (result) => onCreated(result as Product),
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <ProductFields values={values} setField={setField} save={save} />
     </AutosaveRow>
   );

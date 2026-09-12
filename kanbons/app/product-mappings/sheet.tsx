@@ -98,14 +98,14 @@ function ExistingRow({
   row: ProductMapping;
   productLabel?: string | null;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
     required: ["client_name"],
     action: updateProductMappingAction,
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <MappingFields
         values={values}
         setField={setField}
@@ -121,14 +121,14 @@ function NewRow({
 }: {
   onCreated: (row: ProductMapping) => void;
 }) {
-  const { values, setField, save, state } = useAutosave({
+  const { values, setField, save, state, error } = useAutosave({
     initial: empty,
     required: ["client_name"],
     action: createProductMappingAction,
     onSaved: (result) => onCreated(result as ProductMapping),
   });
   return (
-    <AutosaveRow state={state} onSave={save}>
+    <AutosaveRow state={state} error={error} onSave={save}>
       <MappingFields values={values} setField={setField} save={save} />
     </AutosaveRow>
   );

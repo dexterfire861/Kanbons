@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Testing
+
+Warehouse smokes live in `e2e/`. From this directory:
+
+```bash
+npx playwright test
+```
+
+That starts Next at `http://localhost:3000`. It does **not** start Supabase. Run local Supabase first and keep `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`. The suite seeds one packing list and one shipment if those tables are empty.
+
+See `../EVALUATION.md` for the pass/fail contract agents should score after a UI or schema change.
+
 ## Getting Started
 
 First, run the development server:
