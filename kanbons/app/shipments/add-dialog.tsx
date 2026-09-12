@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SHIPMENT_UNIT_TYPES } from "@/lib/models/shipment_unit_types";
+import { cachedProductOptions, type ChoiceOption } from "@/app/ui/choice";
 import { createShipmentAction } from "./actions";
-
-type ProductOption = { id: number; num: string; product: string };
 
 type Line = {
   product_id: string;
@@ -20,9 +19,19 @@ const emptyLine = (): Line => ({
   type_of_unit: "",
 });
 
-export function ShipmentAddDialog({ products }: { products: ProductOption[] }) {
+export function ShipmentAddDialog() {
   const dialog = useRef<HTMLDialogElement>(null);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [products, setProducts] = useState<ChoiceOption[]>([]);
+
+  function open() {
+    dialog.current?.showModal();
+    void cachedProductOptions().then(setProducts);
+  }
+
+  useEffect(() => {
+    return () => setProducts([]);
+  }, []);
 
   function addLine() {
     setLines((current) => [...current, emptyLine()]);
@@ -30,11 +39,7 @@ export function ShipmentAddDialog({ products }: { products: ProductOption[] }) {
 
   return (
     <>
-      <button
-        type="button"
-        className="border border-zinc-800 px-3 py-1 text-sm"
-        onClick={() => dialog.current?.showModal()}
-      >
+      <button type="button" className="btn-primary" onClick={open}>
         Add container
       </button>
       <dialog ref={dialog} className="box wide">
@@ -97,7 +102,7 @@ export function ShipmentAddDialog({ products }: { products: ProductOption[] }) {
                   <option value="">None</option>
                   {products.map((product) => (
                     <option key={product.id} value={product.id}>
-                      {product.num} — {product.product}
+                      {product.label}
                     </option>
                   ))}
                 </select>
@@ -161,7 +166,7 @@ export function ShipmentAddDialog({ products }: { products: ProductOption[] }) {
             <button type="button" className="border border-zinc-400 px-3 py-1 text-sm" onClick={() => dialog.current?.close()}>
               Cancel
             </button>
-            <button type="submit" className="border border-zinc-800 px-3 py-1 text-sm">
+            <button type="submit" className="btn-primary">
               Save container
             </button>
           </div>

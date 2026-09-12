@@ -35,12 +35,60 @@ for (const item of pages) {
   });
 }
 
+test("home shows today's work and page buttons", async ({ page }) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Customer orders" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Need to pack or ship" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Containers in transit" })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Go to a page" })).toBeVisible();
+  const go = page.locator(".page-buttons");
+  await expect(go.getByRole("link", { name: "Customers" })).toBeVisible();
+  await expect(go.getByRole("link", { name: "Packing lists" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "New packing slip" })
+  ).toBeVisible();
+});
+
+test("customer cell saves when you leave it", async ({ page }) => {
+  await page.goto("/customers");
+  const name = page.locator("table input").first();
+  const original = await name.inputValue();
+  await name.click();
+  await name.press("End");
+  await name.type(" ");
+  await name.blur();
+  await expect(page.getByText("Saved")).toBeVisible();
+  await name.fill(original);
+  await name.blur();
+  await expect(page.getByText("Saved")).toBeVisible();
+});
+
 test("customers add form does not ask for an id", async ({ page }) => {
   await page.goto("/customers");
   await page.getByRole("button", { name: "Add customer" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Name", { exact: true })).toBeVisible();
   await expect(dialog.locator("input[name='id']")).toHaveCount(0);
+});
+
+test("table pages do not use a Save button", async ({ page }) => {
+  for (const path of [
+    "/customers",
+    "/products",
+    "/product-mappings",
+    "/stock",
+    "/shipments",
+    "/packing-lists",
+  ]) {
+    await page.goto(path);
+    await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+  }
 });
 
 test("packing lists offer a new packing slip", async ({ page }) => {
@@ -51,7 +99,9 @@ test("packing lists offer a new packing slip", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Confirm packing slip" })).toBeVisible();
   await expect(page.getByText("How it will look")).toBeVisible();
   await expect(page.getByText("KANBONS LLC")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Packing Slip" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Packing Slip", exact: true })
+  ).toBeVisible();
   await expect(page.getByText("INFO@KANBONS.COM")).toBeVisible();
 });
 

@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
-import { debugLog } from "@/lib/timing";
 import { ok, okList } from "./result";
 
 export type PackingListLine =

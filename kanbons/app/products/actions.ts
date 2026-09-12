@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { num, requiredText, text } from "@/lib/form";
 import { createProduct, updateProduct } from "@/lib/models/products";
 
@@ -17,13 +16,11 @@ function fields(formData: FormData) {
 }
 
 export async function createProductAction(formData: FormData) {
-  await createProduct(fields(formData));
-  revalidatePath("/products");
+  return createProduct(fields(formData));
 }
 
 export async function updateProductAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updateProduct(id, fields(formData));
-  revalidatePath("/products");
+  return updateProduct(id, fields(formData));
 }

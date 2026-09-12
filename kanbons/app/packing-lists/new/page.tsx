@@ -1,25 +1,18 @@
 import Link from "next/link";
 import { listCustomers } from "@/lib/models/customers";
-import { listProducts } from "@/lib/models/products";
+import { listMatchProducts } from "@/lib/models/products";
 import { listProductMappings } from "@/lib/models/product_mappings";
 import { nextPackingListNumber } from "@/lib/models/packing_lists";
-import { timePage } from "@/lib/timing";
 import { PageIntro } from "@/app/ui/page-intro";
 import { PurchaseOrderForm } from "./po-form";
 
 export default async function NewPackingSlipPage() {
-  const { customers, products, mappings, nextNumber } = await timePage(
-    "/packing-lists/new",
-    async () => {
-      const [customers, products, mappings, nextNumber] = await Promise.all([
-        listCustomers(),
-        listProducts(),
-        listProductMappings(),
-        nextPackingListNumber(),
-      ]);
-      return { customers, products, mappings, nextNumber };
-    }
-  );
+  const [customers, products, mappings, nextNumber] = await Promise.all([
+    listCustomers(),
+    listMatchProducts(),
+    listProductMappings(),
+    nextPackingListNumber(),
+  ]);
 
   return (
     <main className="p-6">

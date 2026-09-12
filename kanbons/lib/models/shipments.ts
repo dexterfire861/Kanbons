@@ -13,6 +13,11 @@ export type ShipmentInsert = Omit<
 >;
 export type ShipmentUpdate = Database["public"]["Tables"]["shipments"]["Update"];
 
+export type InTransitShipment = Pick<
+  Shipment,
+  "id" | "number" | "invoice_number" | "country" | "arrival_date" | "departure_date"
+>;
+
 export async function listShipments(limit = 150): Promise<Shipment[]> {
   return okList(
     await supabase
@@ -20,6 +25,19 @@ export async function listShipments(limit = 150): Promise<Shipment[]> {
       .select("*")
       .order("number", { ascending: false })
       .limit(limit)
+  );
+}
+
+export async function listInTransitShipments(): Promise<InTransitShipment[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  return okList(
+    await supabase
+      .from("shipments")
+      .select(
+        "id, number, invoice_number, country, arrival_date, departure_date"
+      )
+      .or(`arrival_date.is.null,arrival_date.gt.${today}`)
+      .order("number", { ascending: false })
   );
 }
 

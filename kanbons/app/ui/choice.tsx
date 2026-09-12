@@ -1,54 +1,110 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  loadCustomerOptions,
+  loadProductOptions,
+} from "@/app/ui/catalog";
 
 export type ChoiceOption = { id: number; label: string };
 
+let productOptions: Promise<ChoiceOption[]> | null = null;
+let customerOptions: Promise<ChoiceOption[]> | null = null;
+
+export function cachedProductOptions() {
+  if (!productOptions) productOptions = loadProductOptions();
+  return productOptions;
+}
+
+export function cachedCustomerOptions() {
+  if (!customerOptions) customerOptions = loadCustomerOptions();
+  return customerOptions;
+}
+
 export function Choice({
-  form,
-  name,
-  options,
   value,
+  label,
   emptyLabel = "None",
-  required = false,
+  loadOptions,
+  onChange,
 }: {
-  form?: string;
-  name: string;
-  options: ChoiceOption[];
   value?: number | null;
+  label?: string | null;
   emptyLabel?: string;
-  required?: boolean;
+  loadOptions: () => Promise<ChoiceOption[]>;
+  onChange: (id: number | null, option: ChoiceOption | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [id, setId] = useState(value == null ? "" : String(value));
-  const selected = options.find((option) => String(option.id) === id);
+  const [query, setQuery] = useState("");
+  const [options, setOptions] = useState<ChoiceOption[] | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    loadOptions().then((rows) => {
+      if (!cancelled) setOptions(rows);
+    });
+    function close(event: MouseEvent) {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("mousedown", close);
+    };
+  }, [open, loadOptions]);
+
+  const selected = options?.find((option) => option.id === value);
+  const shown = selected?.label || label || emptyLabel;
+  const filtered = (options ?? []).filter((option) =>
+    option.label.toLowerCase().includes(query.trim().toLowerCase())
+  );
 
   return (
-    <>
-      <input type="hidden" form={form} name={name} value={id} />
+    <div className="picker" ref={box}>
       {open ? (
-        <select
-          value={id}
-          required={required}
-          autoFocus
-          onChange={(event) => {
-            setId(event.target.value);
-            setOpen(false);
-          }}
-          onBlur={() => setOpen(false)}
-        >
-          <option value="">{emptyLabel}</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div className="picker-open">
+          <input
+            autoFocus
+            value={query}
+            placeholder="Type to find"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <ul>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(null, null);
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                {emptyLabel}
+              </button>
+            </li>
+            {filtered.map((option) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(option.id, option);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  {option.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <button type="button" className="choice" onClick={() => setOpen(true)}>
-          {selected?.label || emptyLabel}
+          {shown}
         </button>
       )}
-    </>
+    </div>
   );
 }

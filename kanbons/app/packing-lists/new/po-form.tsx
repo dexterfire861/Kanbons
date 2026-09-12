@@ -334,7 +334,7 @@ export function PurchaseOrderForm({
         <div>
           <button
             type="submit"
-            className="border border-zinc-800 px-3 py-1 text-sm disabled:opacity-50"
+            className="btn-primary"
             disabled={
               preview.lines.length === 0 ||
               preview.lines.some((line) => !line.matched)

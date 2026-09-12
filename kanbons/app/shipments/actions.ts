@@ -42,15 +42,14 @@ export async function createShipmentAction(formData: FormData) {
       type_of_unit: line.type_of_unit ?? null,
     });
   }
-  await createShipmentWithLines(fields(formData), lines);
+  const row = await createShipmentWithLines(fields(formData), lines);
   revalidatePath("/shipments");
   revalidatePath("/contador");
+  return row;
 }
 
 export async function updateShipmentAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updateShipment(id, fields(formData));
-  revalidatePath("/shipments");
-  revalidatePath(`/shipments/${id}`);
+  return updateShipment(id, fields(formData));
 }

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { num, requiredText, text } from "@/lib/form";
 import {
   createProductMapping,
@@ -17,13 +16,11 @@ function fields(formData: FormData) {
 }
 
 export async function createProductMappingAction(formData: FormData) {
-  await createProductMapping(fields(formData));
-  revalidatePath("/product-mappings");
+  return createProductMapping(fields(formData));
 }
 
 export async function updateProductMappingAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updateProductMapping(id, fields(formData));
-  revalidatePath("/product-mappings");
+  return updateProductMapping(id, fields(formData));
 }

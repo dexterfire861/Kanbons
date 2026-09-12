@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { num, requiredNum, text } from "@/lib/form";
 import { getCustomer } from "@/lib/models/customers";
 import { createPackingList, updatePackingList } from "@/lib/models/packing_lists";
@@ -20,18 +19,14 @@ async function fields(formData: FormData) {
 }
 
 export async function createPackingListAction(formData: FormData) {
-  const row = await createPackingList({
+  return createPackingList({
     ...(await fields(formData)),
     status: "confirmed",
   });
-  revalidatePath("/packing-lists");
-  revalidatePath(`/packing-lists/${row.id}`);
 }
 
 export async function updatePackingListAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updatePackingList(id, await fields(formData));
-  revalidatePath("/packing-lists");
-  revalidatePath(`/packing-lists/${id}`);
+  return updatePackingList(id, await fields(formData));
 }

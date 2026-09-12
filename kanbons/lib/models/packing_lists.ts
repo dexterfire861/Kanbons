@@ -10,6 +10,11 @@ export type PackingListInsert = Omit<
 export type PackingListUpdate =
   Database["public"]["Tables"]["packing_lists"]["Update"];
 
+export type OpenPackingList = Pick<
+  PackingList,
+  "id" | "num_pl" | "customer" | "customer_po" | "status" | "ship_date"
+>;
+
 export async function listPackingLists(
   limit = 150
 ): Promise<PackingList[]> {
@@ -19,6 +24,16 @@ export async function listPackingLists(
       .select("*")
       .order("num_pl", { ascending: false })
       .limit(limit)
+  );
+}
+
+export async function listOpenPackingLists(): Promise<OpenPackingList[]> {
+  return okList(
+    await supabase
+      .from("packing_lists")
+      .select("id, num_pl, customer, customer_po, status, ship_date")
+      .in("status", ["draft", "confirmed"])
+      .order("ship_date", { ascending: true, nullsFirst: true })
   );
 }
 

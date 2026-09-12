@@ -25,3 +25,4 @@ create table public.packing_lists (
 create index packing_lists_num_pl_idx on public.packing_lists (num_pl);
 create index packing_lists_customer_id_idx on public.packing_lists (customer_id);
 create index packing_lists_customer_po_idx on public.packing_lists (customer_po);
+create index packing_lists_status_idx on public.packing_lists (status);

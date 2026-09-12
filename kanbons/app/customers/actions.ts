@@ -18,13 +18,13 @@ function fields(formData: FormData) {
 }
 
 export async function createCustomerAction(formData: FormData) {
-  await createCustomer(fields(formData));
+  const row = await createCustomer(fields(formData));
   revalidatePath("/customers");
+  return row;
 }
 
 export async function updateCustomerAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updateCustomer(id, fields(formData));
-  revalidatePath("/customers");
+  return updateCustomer(id, fields(formData));
 }

@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { listProductOptions } from "@/lib/models/products";
 import { getShipment } from "@/lib/models/shipments";
 import { listShipmentLines } from "@/lib/models/shipment_lines";
-import { SHIPMENT_UNIT_TYPES } from "@/lib/models/shipment_unit_types";
-import { debugLog, timePage } from "@/lib/timing";
-import { Choice } from "@/app/ui/choice";
 import { PageIntro } from "@/app/ui/page-intro";
-import {
-  createShipmentLineAction,
-  updateShipmentLineAction,
-} from "./actions";
+import { ShipmentLineSheet } from "./sheet";
 
 export default async function ShipmentDetailPage({
   params,
@@ -20,26 +13,11 @@ export default async function ShipmentDetailPage({
   const id = Number((await params).id);
   if (!Number.isFinite(id)) notFound();
 
-  const [shipment, lines, products] = await timePage(`/shipments/${id}`, () =>
-    Promise.all([
-      getShipment(id),
-      listShipmentLines(id),
-      listProductOptions(),
-    ])
-  );
+  const [shipment, lines] = await Promise.all([
+    getShipment(id),
+    listShipmentLines(id),
+  ]);
   if (!shipment) notFound();
-  const productOptions = products.map((product) => ({
-    id: product.id,
-    label: `${product.num} — ${product.product}`,
-  }));
-  // #region agent log
-  debugLog("A", "app/shipments/[id]/page.tsx", "container page sizes", {
-    shipmentId: id,
-    lineCount: lines.length,
-    productCount: products.length,
-    optionNodes: products.length,
-  });
-  // #endregion
 
   return (
     <main className="p-6">
@@ -59,108 +37,7 @@ export default async function ShipmentDetailPage({
         ]}
       />
 
-      <form id="add-ship-line" action={createShipmentLineAction} hidden />
-      {lines.map((line) => (
-        <form
-          key={line.id}
-          id={`ship-line-${line.id}`}
-          action={updateShipmentLineAction}
-          hidden
-        />
-      ))}
-
-      <div className="sheet">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Product</th>
-              <th>Yards / pieces</th>
-              <th>Units</th>
-              <th>Type of unit</th>
-              <th className="actions" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="num text-zinc-400">new</td>
-              <td>
-                <input type="hidden" form="add-ship-line" name="shipment_id" value={shipment.id} />
-                <select form="add-ship-line" name="product_id" required defaultValue="">
-                  <option value="">Product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.num} — {product.product}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <input form="add-ship-line" name="yards_pcs" placeholder="Yards / pieces" />
-              </td>
-              <td>
-                <input form="add-ship-line" name="unit" placeholder="Units" />
-              </td>
-              <td>
-                <select form="add-ship-line" name="type_of_unit" defaultValue="">
-                  <option value="">Type of unit</option>
-                  {SHIPMENT_UNIT_TYPES.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="actions">
-                <button form="add-ship-line" type="submit" className="border border-zinc-800 px-2 py-1 text-sm">
-                  Add
-                </button>
-              </td>
-            </tr>
-            {lines.map((line) => {
-              const form = `ship-line-${line.id}`;
-              return (
-                <tr key={line.id}>
-                  <td className="num">
-                    {line.id}
-                    <input type="hidden" form={form} name="id" value={line.id} />
-                    <input type="hidden" form={form} name="shipment_id" value={shipment.id} />
-                  </td>
-                  <td>
-                    <Choice
-                      form={form}
-                      name="product_id"
-                      options={productOptions}
-                      value={line.product_id}
-                    />
-                  </td>
-                  <td>
-                    <input form={form} name="yards_pcs" defaultValue={line.yards_pcs ?? ""} />
-                  </td>
-                  <td>
-                    <input form={form} name="unit" defaultValue={line.unit ?? ""} />
-                  </td>
-                  <td>
-                    <select form={form} name="type_of_unit" defaultValue={line.type_of_unit ?? ""}>
-                      <option value="">None</option>
-                      {SHIPMENT_UNIT_TYPES.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="actions">
-                    <button form={form} type="submit" className="border border-zinc-400 px-2 py-1 text-sm">
-                      Save
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ShipmentLineSheet shipmentId={shipment.id} lines={lines} />
     </main>
   );
 }

@@ -10,7 +10,7 @@ export function CustomerAddDialog() {
     <>
       <button
         type="button"
-        className="border border-zinc-800 px-3 py-1 text-sm"
+        className="btn-primary"
         onClick={() => dialog.current?.showModal()}
       >
         Add customer
@@ -63,7 +63,7 @@ export function CustomerAddDialog() {
             <button type="button" className="border border-zinc-400 px-3 py-1 text-sm" onClick={() => dialog.current?.close()}>
               Cancel
             </button>
-            <button type="submit" className="border border-zinc-800 px-3 py-1 text-sm">
+            <button type="submit" className="btn-primary">
               Save customer
             </button>
           </div>

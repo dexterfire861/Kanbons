@@ -321,6 +321,135 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_lines: {
+        Row: {
+          description: string | null
+          ext_amount: number | null
+          id: number
+          item_code: string | null
+          product_id: number | null
+          purchase_order_id: number
+          quantity: number | null
+          um: string | null
+          unit_price: number | null
+        }
+        Insert: {
+          description?: string | null
+          ext_amount?: number | null
+          id?: never
+          item_code?: string | null
+          product_id?: number | null
+          purchase_order_id: number
+          quantity?: number | null
+          um?: string | null
+          unit_price?: number | null
+        }
+        Update: {
+          description?: string | null
+          ext_amount?: number | null
+          id?: never
+          item_code?: string | null
+          product_id?: number | null
+          purchase_order_id?: number
+          quantity?: number | null
+          um?: string | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          customer_id: number | null
+          customer_po: string | null
+          date: string | null
+          gold_json: Json | null
+          id: number
+          issues: string | null
+          ocr_markdown: string | null
+          packing_list_id: number | null
+          ship_date: string | null
+          ship_to_address: string | null
+          ship_to_city: string | null
+          ship_to_name: string | null
+          ship_to_state: string | null
+          ship_to_zip: string | null
+          source_path: string | null
+          status: string
+          vendor_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: number | null
+          customer_po?: string | null
+          date?: string | null
+          gold_json?: Json | null
+          id?: never
+          issues?: string | null
+          ocr_markdown?: string | null
+          packing_list_id?: number | null
+          ship_date?: string | null
+          ship_to_address?: string | null
+          ship_to_city?: string | null
+          ship_to_name?: string | null
+          ship_to_state?: string | null
+          ship_to_zip?: string | null
+          source_path?: string | null
+          status?: string
+          vendor_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: number | null
+          customer_po?: string | null
+          date?: string | null
+          gold_json?: Json | null
+          id?: never
+          issues?: string | null
+          ocr_markdown?: string | null
+          packing_list_id?: number | null
+          ship_date?: string | null
+          ship_to_address?: string | null
+          ship_to_city?: string | null
+          ship_to_name?: string | null
+          ship_to_state?: string | null
+          ship_to_zip?: string | null
+          source_path?: string | null
+          status?: string
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_packing_list_id_fkey"
+            columns: ["packing_list_id"]
+            isOneToOne: false
+            referencedRelation: "packing_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipment_lines: {
         Row: {
           id: number

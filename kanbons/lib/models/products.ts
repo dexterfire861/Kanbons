@@ -1,6 +1,6 @@
+import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
-import { debugLog } from "@/lib/timing";
 import { ok, okList, okMaybe } from "./result";
 
 export type Product = Database["public"]["Tables"]["products"]["Row"];
@@ -13,30 +13,32 @@ export type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
 export type ProductOption = Pick<Product, "id" | "num" | "product">;
 
 export async function listProducts(): Promise<Product[]> {
-  const start = performance.now();
-  const rows = okList(await supabase.from("products").select("*").order("num"));
-  // #region agent log
-  debugLog("E", "lib/models/products.ts:listProducts", "catalog fetch", {
-    ms: Math.round(performance.now() - start),
-    rowCount: rows.length,
-  });
-  // #endregion
-  return rows;
+  return okList(await supabase.from("products").select("*").order("num"));
 }
 
-export async function listProductOptions(): Promise<ProductOption[]> {
-  const start = performance.now();
-  const rows = okList(
-    await supabase.from("products").select("id, num, product").order("num")
-  );
-  // #region agent log
-  debugLog("E", "lib/models/products.ts:listProductOptions", "catalog options", {
-    ms: Math.round(performance.now() - start),
-    rowCount: rows.length,
-  });
-  // #endregion
-  return rows;
-}
+export const listProductOptions = unstable_cache(
+  async (): Promise<ProductOption[]> => {
+    return okList(
+      await supabase.from("products").select("id, num, product").order("num")
+    );
+  },
+  ["product-options"],
+  { revalidate: 45 }
+);
+
+export type MatchProduct = Pick<Product, "id" | "num" | "product" | "pre_uni">;
+
+export const listMatchProducts = unstable_cache(
+  async (): Promise<MatchProduct[]> =>
+    okList(
+      await supabase
+        .from("products")
+        .select("id, num, product, pre_uni")
+        .order("num")
+    ),
+  ["match-products"],
+  { revalidate: 45 }
+);
 
 export async function getProduct(id: number): Promise<Product | null> {
   return okMaybe(

@@ -16,15 +16,15 @@ function fields(formData: FormData) {
 export async function createStockAction(formData: FormData) {
   const productId = num(formData, "product_id");
   if (productId == null) throw new Error("product is required");
-  await upsertStock({ product_id: productId, ...fields(formData) });
-  revalidatePath("/stock");
+  const row = await upsertStock({ product_id: productId, ...fields(formData) });
   revalidatePath("/contador");
+  return row;
 }
 
 export async function updateStockAction(formData: FormData) {
   const productId = num(formData, "product_id");
   if (productId == null) throw new Error("product is required");
-  await updateStock(productId, fields(formData));
-  revalidatePath("/stock");
+  const row = await updateStock(productId, fields(formData));
   revalidatePath("/contador");
+  return row;
 }
