@@ -40,6 +40,7 @@ export default async function NewPackingSlipPage() {
           id: customer.id,
           name: customer.name,
           id_cust: customer.id_cust,
+          company: customer.company,
           address: customer.address,
           city: customer.city,
           state: customer.state,
@@ -56,6 +57,7 @@ export default async function NewPackingSlipPage() {
           kanbons_name: mapping.kanbons_name,
           item_code: mapping.item_code,
           product_id: mapping.product_id,
+          company: mapping.company,
         }))}
         nextNumber={nextNumber}
       />

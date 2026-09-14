@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   asWrittenOptions,
   catalogItemCode,
+  isWoodhaven,
   packingSlipFromParts,
   resolveProductId,
   type Address,
@@ -23,6 +24,7 @@ type CustomerOption = {
   id: number;
   name: string;
   id_cust: string | null;
+  company: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -76,7 +78,8 @@ function sameText(
 function fillLine(
   line: Line,
   products: MatchProduct[],
-  mappings: MatchMapping[]
+  mappings: MatchMapping[],
+  woodhaven = false
 ): Line {
   const asPo = {
     asWritten: line.asWritten,
@@ -84,13 +87,18 @@ function fillLine(
     altCode: line.altCode || null,
     yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
     unit: line.unit ? Number(line.unit) : null,
-    productId: line.productId,
+    productId: null,
   };
-  const productId = resolveProductId(asPo, products, mappings);
+  const productId = resolveProductId(asPo, products, mappings, woodhaven);
   return {
     ...line,
     productId,
-    itemCode: catalogItemCode({ ...asPo, productId }, products, mappings),
+    itemCode: catalogItemCode(
+      { ...asPo, productId, itemCode: line.itemCode || null },
+      products,
+      mappings,
+      woodhaven
+    ),
   };
 }
 
@@ -221,19 +229,23 @@ export function PurchaseOrderForm({
   );
   const router = useRouter();
 
-  const names = useMemo(() => asWrittenOptions(mappings), [mappings]);
+  const customer = useMemo(
+    () => customers.find((item) => String(item.id) === customerId),
+    [customers, customerId]
+  );
+  const woodhaven = isWoodhaven(customer?.company, customer?.name);
+  const names = useMemo(
+    () => asWrittenOptions(mappings, woodhaven),
+    [mappings, woodhaven]
+  );
   const catalogLines = useMemo(
-    () => lines.map((line) => fillLine(line, products, mappings)),
-    [lines, mappings, products]
+    () => lines.map((line) => fillLine(line, products, mappings, woodhaven)),
+    [lines, mappings, products, woodhaven]
   );
   const nameChoices = useMemo(() => {
     const extra = catalogLines.map((line) => line.asWritten).filter(Boolean);
     return [...new Set([...names, ...extra])];
   }, [catalogLines, names]);
-  const customer = useMemo(
-    () => customers.find((item) => String(item.id) === customerId),
-    [customers, customerId]
-  );
 
   const preview = useMemo(
     () =>
@@ -257,6 +269,7 @@ export function PurchaseOrderForm({
         })),
         products,
         mappings,
+        company: customer?.company ?? null,
       }),
     [
       billTo,
@@ -276,18 +289,15 @@ export function PurchaseOrderForm({
     setLines((current) =>
       current.map((item, i) => {
         if (i !== index) return item;
-        const rematch =
-          patch.asWritten !== undefined ||
-          patch.itemCode !== undefined ||
-          patch.altCode !== undefined;
         return fillLine(
           {
             ...item,
             ...patch,
-            productId: rematch ? (patch.productId ?? null) : item.productId,
+            productId: null,
           },
           products,
-          mappings
+          mappings,
+          woodhaven
         );
       })
     );
@@ -309,12 +319,17 @@ export function PurchaseOrderForm({
       state: parsed.shipTo.state,
       zip: parsed.shipTo.zip,
     };
-    const fromCustomerAddress = fromCustomer(
-      customers.find((item) => String(item.id) === nextCustomer)
+    const nextCustomerRow = customers.find(
+      (item) => String(item.id) === nextCustomer
     );
+    const fromCustomerAddress = fromCustomer(nextCustomerRow);
     const nextBillTo = fromCustomerAddress.name
       ? fromCustomerAddress
       : nextShipTo;
+    const nextWoodhaven = isWoodhaven(
+      nextCustomerRow?.company,
+      nextCustomerRow?.name
+    );
     const nextLines =
       parsed.lines.length > 0
         ? parsed.lines.map((line) =>
@@ -326,10 +341,11 @@ export function PurchaseOrderForm({
                 yardsPieces:
                   line.yardsPieces == null ? "" : String(line.yardsPieces),
                 unit: "",
-                productId: line.productId,
+                productId: null,
               },
               products,
-              mappings
+              mappings,
+              nextWoodhaven
             )
           )
         : [emptyLine()];
@@ -461,6 +477,16 @@ export function PurchaseOrderForm({
                 const address = fromCustomer(next);
                 setShipTo(address);
                 setBillTo(address);
+                setLines((current) =>
+                  current.map((line) =>
+                    fillLine(
+                      line,
+                      products,
+                      mappings,
+                      isWoodhaven(next?.company, next?.name)
+                    )
+                  )
+                );
               }}
             >
               <option value="">Select customer</option>

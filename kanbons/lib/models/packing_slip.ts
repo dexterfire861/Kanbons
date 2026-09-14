@@ -53,6 +53,7 @@ export async function packingSlipFromPurchaseOrder(
     lines: po.lines,
     products,
     mappings,
+    company: customer.company,
   });
 }
 

@@ -3,9 +3,11 @@ create table public.product_mappings (
   client_name text not null,
   kanbons_name text,
   item_code text,
-  product_id bigint references public.products (id)
+  product_id bigint references public.products (id),
+  company text
 );
 
 create index product_mappings_client_name_idx on public.product_mappings (client_name);
 create index product_mappings_item_code_idx on public.product_mappings (item_code);
 create index product_mappings_product_id_idx on public.product_mappings (product_id);
+create index product_mappings_company_idx on public.product_mappings (company);

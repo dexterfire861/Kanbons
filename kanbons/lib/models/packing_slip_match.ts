@@ -61,15 +61,37 @@ export type MatchMapping = {
   kanbons_name: string | null;
   item_code: string | null;
   product_id: number | null;
+  company: string | null;
 };
 
 function norm(value: string | null | undefined): string {
   return (value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-export function asWrittenOptions(mappings: MatchMapping[]): string[] {
+export function isWoodhaven(
+  company?: string | null,
+  name?: string | null
+): boolean {
+  if (company === "Woodhaven") return true;
+  return (name ?? "").toUpperCase().includes("WOODHAVEN");
+}
+
+function mappingsForCatalog(
+  mappings: MatchMapping[],
+  woodhaven: boolean
+): MatchMapping[] {
+  if (woodhaven) {
+    return mappings.filter((mapping) => mapping.company === "Woodhaven");
+  }
+  return mappings.filter((mapping) => !mapping.company);
+}
+
+export function asWrittenOptions(
+  mappings: MatchMapping[],
+  woodhaven = false
+): string[] {
   const names = new Set<string>();
-  for (const mapping of mappings) {
+  for (const mapping of mappingsForCatalog(mappings, woodhaven)) {
     if (mapping.product_id == null) continue;
     const name = mapping.client_name.trim();
     if (name) names.add(name);
@@ -77,26 +99,40 @@ export function asWrittenOptions(mappings: MatchMapping[]): string[] {
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
+function exactMappingId(
+  needle: string,
+  mappings: MatchMapping[],
+  field: "item_code" | "name"
+): number | null {
+  const hit = mappings.find((mapping) => {
+    if (mapping.product_id == null) return false;
+    if (field === "item_code") return norm(mapping.item_code) === needle;
+    return (
+      norm(mapping.client_name) === needle ||
+      norm(mapping.kanbons_name) === needle
+    );
+  });
+  return hit?.product_id ?? null;
+}
+
 function fuzzyProductId(
   needle: string,
   products: MatchProduct[],
-  mappings: MatchMapping[]
+  mappings: MatchMapping[],
+  woodhaven: boolean
 ): number | null {
   if (!needle) return null;
+  const catalog = mappingsForCatalog(mappings, woodhaven);
+  const byItem = exactMappingId(needle, catalog, "item_code");
+  if (byItem != null) return byItem;
   const bySku = products.find((product) => norm(product.num) === needle);
   if (bySku) return bySku.id;
-  const byItem = mappings.find((mapping) => norm(mapping.item_code) === needle);
-  if (byItem?.product_id) return byItem.product_id;
+  const byClient = exactMappingId(needle, catalog, "name");
+  if (byClient != null) return byClient;
   const byName = products.find((product) => norm(product.product) === needle);
   if (byName) return byName.id;
-  const byClient = mappings.find(
-    (mapping) =>
-      norm(mapping.client_name) === needle ||
-      norm(mapping.kanbons_name) === needle
-  );
-  if (byClient?.product_id) return byClient.product_id;
   if (needle.length < 4) return null;
-  const close = mappings.filter((mapping) => {
+  const close = catalog.filter((mapping) => {
     if (mapping.product_id == null) return false;
     const client = norm(mapping.client_name);
     const ours = norm(mapping.kanbons_name);
@@ -123,11 +159,12 @@ function fuzzyProductId(
 export function resolveProductId(
   line: PurchaseOrderLine,
   products: MatchProduct[],
-  mappings: MatchMapping[]
+  mappings: MatchMapping[],
+  woodhaven = false
 ): number | null {
   if (line.productId != null) return line.productId;
   for (const needle of [line.itemCode, line.altCode, line.asWritten]) {
-    const hit = fuzzyProductId(norm(needle), products, mappings);
+    const hit = fuzzyProductId(norm(needle), products, mappings, woodhaven);
     if (hit != null) return hit;
   }
   return null;
@@ -136,15 +173,17 @@ export function resolveProductId(
 export function catalogItemCode(
   line: PurchaseOrderLine,
   products: MatchProduct[],
-  mappings: MatchMapping[]
+  mappings: MatchMapping[],
+  woodhaven = false
 ): string {
   const existing = (line.itemCode ?? "").trim();
   if (existing) return existing;
-  const productId = resolveProductId(line, products, mappings);
+  const productId = resolveProductId(line, products, mappings, woodhaven);
   if (productId == null) return "";
+  const scoped = mappingsForCatalog(mappings, woodhaven);
   const alt = norm(line.altCode);
   if (alt) {
-    const fromAlt = mappings.find(
+    const fromAlt = scoped.find(
       (mapping) =>
         mapping.product_id === productId && norm(mapping.item_code) === alt
     );
@@ -152,7 +191,7 @@ export function catalogItemCode(
   }
   const codes = [
     ...new Set(
-      mappings
+      scoped
         .filter((mapping) => mapping.product_id === productId)
         .map((mapping) => (mapping.item_code ?? "").trim())
         .filter(Boolean)
@@ -176,7 +215,9 @@ export function packingSlipFromParts(input: {
   lines: PurchaseOrderLine[];
   products: MatchProduct[];
   mappings: MatchMapping[];
+  company?: string | null;
 }): PackingSlip {
+  const woodhaven = isWoodhaven(input.company, input.customerName);
   const byId = new Map(input.products.map((product) => [product.id, product]));
   const lines: PackingSlipLine[] = [];
   for (const line of input.lines) {
@@ -188,7 +229,12 @@ export function packingSlipFromParts(input: {
     ) {
       continue;
     }
-    const productId = resolveProductId(line, input.products, input.mappings);
+    const productId = resolveProductId(
+      line,
+      input.products,
+      input.mappings,
+      woodhaven
+    );
     const product = productId == null ? null : byId.get(productId) ?? null;
     lines.push({
       asWritten: line.asWritten,

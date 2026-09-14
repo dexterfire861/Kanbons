@@ -38,6 +38,7 @@ export type Database = {
         Row: {
           address: string | null
           city: string | null
+          company: string | null
           email_contact: string | null
           id: number
           id_cust: string | null
@@ -49,6 +50,7 @@ export type Database = {
         Insert: {
           address?: string | null
           city?: string | null
+          company?: string | null
           email_contact?: string | null
           id?: number
           id_cust?: string | null
@@ -60,6 +62,7 @@ export type Database = {
         Update: {
           address?: string | null
           city?: string | null
+          company?: string | null
           email_contact?: string | null
           id?: number
           id_cust?: string | null
@@ -255,6 +258,7 @@ export type Database = {
       product_mappings: {
         Row: {
           client_name: string
+          company: string | null
           id: number
           item_code: string | null
           kanbons_name: string | null
@@ -262,6 +266,7 @@ export type Database = {
         }
         Insert: {
           client_name: string
+          company?: string | null
           id?: never
           item_code?: string | null
           kanbons_name?: string | null
@@ -269,6 +274,7 @@ export type Database = {
         }
         Update: {
           client_name?: string
+          company?: string | null
           id?: never
           item_code?: string | null
           kanbons_name?: string | null

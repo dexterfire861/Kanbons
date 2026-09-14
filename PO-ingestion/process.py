@@ -27,6 +27,10 @@ def _fold(value: str | None) -> str:
     return (value or "").strip().casefold()
 
 
+def _norm(value: str | None) -> str:
+    return "".join(ch for ch in (value or "").upper() if ch.isalnum())
+
+
 def _cell(row: dict, ending: str) -> str:
     want = ending.casefold()
     for key, value in row.items():
@@ -152,21 +156,22 @@ def parse_purchase_order(dump: dict, source: Path) -> PurchaseOrder:
 
 
 def _exact_product_id(needle: str, catalog: list[tuple[str, int]]) -> int | None:
-    folded = _fold(needle)
+    folded = _norm(needle)
     if not folded:
         return None
     hits = [pid for name, pid in catalog if name == folded]
+    hits = list(dict.fromkeys(hits))
     return hits[0] if len(hits) == 1 else None
 
 
 def _contains_product_id(blob: str, catalog: list[tuple[str, int]]) -> int | None | str:
-    folded = _fold(blob)
-    if len(folded) < 20:
+    folded = _norm(blob)
+    if not folded:
         return None
     hits = [
         pid
         for name, pid in catalog
-        if len(name) >= 4 and name in folded
+        if len(name) >= 4 and (name in folded or (len(folded) >= 4 and folded in name))
     ]
     hits = list(dict.fromkeys(hits))
     if len(hits) == 1:
@@ -174,6 +179,17 @@ def _contains_product_id(blob: str, catalog: list[tuple[str, int]]) -> int | Non
     if len(hits) > 1:
         return "many"
     return None
+
+
+def _mapping_catalog(rows: list[dict], fields: tuple[str, ...]) -> list[tuple[str, int]]:
+    catalog: list[tuple[str, int]] = []
+    for mapping in rows:
+        pid = int(mapping["product_id"])
+        for field in fields:
+            value = mapping.get(field)
+            if value:
+                catalog.append((_norm(str(value)), pid))
+    return catalog
 
 
 def match_catalog(po: PurchaseOrder, conn) -> list[str]:
@@ -186,30 +202,68 @@ def match_catalog(po: PurchaseOrder, conn) -> list[str]:
     mappings = [
         dict(r)
         for r in conn.execute(
-            "select client_name, kanbons_name, product_id from public.product_mappings"
+            "select client_name, kanbons_name, item_code, product_id, company "
+            "from public.product_mappings"
         ).fetchall()
     ]
-    skus = [(_fold(p["num"]), int(p["id"])) for p in products if p["num"]]
-    names = [(_fold(p["product"]), int(p["id"])) for p in products if p["product"]]
-    for mapping in mappings:
-        if mapping["product_id"] is None:
-            continue
-        pid = int(mapping["product_id"])
-        if mapping["client_name"]:
-            names.append((_fold(mapping["client_name"]), pid))
-        if mapping["kanbons_name"]:
-            names.append((_fold(mapping["kanbons_name"]), pid))
-    catalog = skus + names
+    customers = [
+        dict(r)
+        for r in conn.execute(
+            "select id, name, company from public.customers"
+        ).fetchall()
+    ]
+    ship = _fold(po.ship_to_name)
+    hits = [c for c in customers if _fold(c["name"]) == ship]
+    if len(hits) == 1:
+        po.customer_id = int(hits[0]["id"])
+
+    company = None
+    if po.customer_id:
+        for customer in customers:
+            if int(customer["id"]) == po.customer_id:
+                name = customer.get("name") or ""
+                company = customer.get("company")
+                if company != "Woodhaven" and "WOODHAVEN" in name.upper():
+                    company = "Woodhaven"
+                break
+
+    linked = [m for m in mappings if m["product_id"] is not None]
+    woodhaven = company == "Woodhaven"
+    branded = [m for m in linked if m.get("company") == "Woodhaven"] if woodhaven else []
+    unscoped = [m for m in linked if not m.get("company")]
+    catalog_maps = branded if woodhaven else unscoped
+    company_codes = _mapping_catalog(catalog_maps, ("item_code",))
+    company_names = _mapping_catalog(catalog_maps, ("client_name", "kanbons_name"))
+    skus = [(_norm(p["num"]), int(p["id"])) for p in products if p["num"]]
+    product_names = [
+        (_norm(p["product"]), int(p["id"])) for p in products if p["product"]
+    ]
     by_id = {int(p["id"]): p for p in products}
 
     extra: list[str] = []
     for line in po.lines:
-        blob = f"{line.item_code or ''} {line.description or ''}".strip()
-        product_id = _exact_product_id(line.item_code or "", skus)
+        needles = [line.item_code, getattr(line, "alt_code", None), line.description]
+        blob = " ".join(part for part in needles if part)
+        product_id = None
+        for catalog in (company_codes, skus, company_names, product_names):
+            for needle in needles:
+                product_id = _exact_product_id(needle or "", catalog)
+                if product_id is not None:
+                    break
+            if product_id is not None:
+                break
         if product_id is None:
-            product_id = _exact_product_id(line.description or "", names)
-        if product_id is None:
-            contained = _contains_product_id(blob, catalog)
+            contained: int | None | str = None
+            for catalog in (
+                company_codes + company_names,
+                skus + product_names,
+            ):
+                for needle in needles + [blob]:
+                    contained = _contains_product_id(needle or "", catalog)
+                    if contained is not None:
+                        break
+                if contained is not None:
+                    break
             if contained == "many":
                 extra.append(f"Too many matches in: {blob}")
             elif isinstance(contained, int):
@@ -219,15 +273,8 @@ def match_catalog(po: PurchaseOrder, conn) -> list[str]:
         if product:
             line.sku = product["num"]
             line.product_name = product["product"]
-
-    customers = [
-        dict(r)
-        for r in conn.execute("select id, name from public.customers").fetchall()
-    ]
-    ship = _fold(po.ship_to_name)
-    hits = [c for c in customers if _fold(c["name"]) == ship]
-    if len(hits) == 1:
-        po.customer_id = int(hits[0]["id"])
+            if not (line.description or "").strip():
+                line.description = product["product"]
     return extra
 
 
