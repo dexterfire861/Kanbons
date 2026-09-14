@@ -22,6 +22,15 @@ export function requiredNum(formData: FormData, key: string): number {
   return value;
 }
 
+export function jsonObject<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error("Could not read the submitted form");
+  }
+}
+
 export function jsonArray<T>(raw: string | null): T[] {
   if (!raw) return [];
   try {

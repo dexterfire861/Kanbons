@@ -205,6 +205,7 @@ export type Database = {
       po_ingest_runs: {
         Row: {
           created_at: string
+          duration_ms: number | null
           extracted_json: Json | null
           failure_reason: string | null
           gold_json: Json | null
@@ -217,6 +218,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          duration_ms?: number | null
           extracted_json?: Json | null
           failure_reason?: string | null
           gold_json?: Json | null
@@ -229,6 +231,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          duration_ms?: number | null
           extracted_json?: Json | null
           failure_reason?: string | null
           gold_json?: Json | null

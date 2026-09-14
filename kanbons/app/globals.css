@@ -156,6 +156,17 @@ dialog.wide {
   background: #fff;
 }
 
+.needs-you input,
+.needs-you select,
+.needs-you textarea {
+  border-color: #b91c1c;
+}
+
+.needs-you-note {
+  font-weight: 400;
+  color: #b91c1c;
+}
+
 .nav-current {
   color: var(--accent);
   font-weight: 600;

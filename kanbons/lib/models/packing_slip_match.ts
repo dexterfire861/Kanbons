@@ -13,6 +13,7 @@ export type Address = {
 export type PurchaseOrderLine = {
   asWritten: string;
   itemCode: string | null;
+  altCode?: string | null;
   yardsPieces: number | null;
   unit: number | null;
   productId: number | null;
@@ -99,9 +100,11 @@ function fuzzyProductId(
     if (mapping.product_id == null) return false;
     const client = norm(mapping.client_name);
     const ours = norm(mapping.kanbons_name);
+    const code = norm(mapping.item_code);
     return (
       (client.length >= 4 && (client.includes(needle) || needle.includes(client))) ||
-      (ours.length >= 4 && (ours.includes(needle) || needle.includes(ours)))
+      (ours.length >= 4 && (ours.includes(needle) || needle.includes(ours))) ||
+      (code.length >= 4 && (code.includes(needle) || needle.includes(code)))
     );
   });
   if (close.length === 1) return close[0].product_id;
@@ -123,9 +126,40 @@ export function resolveProductId(
   mappings: MatchMapping[]
 ): number | null {
   if (line.productId != null) return line.productId;
-  const fromCode = fuzzyProductId(norm(line.itemCode), products, mappings);
-  if (fromCode != null) return fromCode;
-  return fuzzyProductId(norm(line.asWritten), products, mappings);
+  for (const needle of [line.itemCode, line.altCode, line.asWritten]) {
+    const hit = fuzzyProductId(norm(needle), products, mappings);
+    if (hit != null) return hit;
+  }
+  return null;
+}
+
+export function catalogItemCode(
+  line: PurchaseOrderLine,
+  products: MatchProduct[],
+  mappings: MatchMapping[]
+): string {
+  const existing = (line.itemCode ?? "").trim();
+  if (existing) return existing;
+  const productId = resolveProductId(line, products, mappings);
+  if (productId == null) return "";
+  const alt = norm(line.altCode);
+  if (alt) {
+    const fromAlt = mappings.find(
+      (mapping) =>
+        mapping.product_id === productId && norm(mapping.item_code) === alt
+    );
+    if (fromAlt?.item_code?.trim()) return fromAlt.item_code.trim();
+  }
+  const codes = [
+    ...new Set(
+      mappings
+        .filter((mapping) => mapping.product_id === productId)
+        .map((mapping) => (mapping.item_code ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+  if (codes.length === 1) return codes[0];
+  return (products.find((product) => product.id === productId)?.num ?? "").trim();
 }
 
 export function packingSlipFromParts(input: {
@@ -146,7 +180,14 @@ export function packingSlipFromParts(input: {
   const byId = new Map(input.products.map((product) => [product.id, product]));
   const lines: PackingSlipLine[] = [];
   for (const line of input.lines) {
-    if (!line.asWritten && line.productId == null && line.unit == null) continue;
+    if (
+      !line.asWritten &&
+      line.productId == null &&
+      line.unit == null &&
+      !line.itemCode
+    ) {
+      continue;
+    }
     const productId = resolveProductId(line, input.products, input.mappings);
     const product = productId == null ? null : byId.get(productId) ?? null;
     lines.push({

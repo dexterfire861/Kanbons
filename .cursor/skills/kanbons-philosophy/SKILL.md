@@ -21,12 +21,13 @@ List each finding as **pass** or **violate**. Violations must include file:line 
 - Building OCR, login, print, or PO pipelines unless the user asked for that workflow now.
 - Leftover debug ingest: `debugLog`, `NavTiming`, posts to `127.0.0.1:7252`, or `#region agent log`.
 - `PurchaseOrder` used for both the `purchase_orders` row and a form DTO (DTO is `PurchaseOrderInput`).
-- An unused `po_ingest_runs` TypeScript model reintroduced.
+- An unused `po_ingest_runs` TypeScript model. Writes go through `kanbons/lib/models/po_ingest_runs.ts`.
 
 ## Pass when
 
 - One SQL file per table remains the database truth; one typed model module per table is the app truth.
 - Pages are thin: Server Actions call model functions; OCR can later import those same functions.
+- `po_ingest_runs` records each PO PDF read (duration, failed / unmatched / saved) and New packing slip lists Last reads.
 - Contador is read-only; warehouse counts are edited on Stock.
 
 Score every `EVALUATION.md` criterion. Harness failures or any violate → **block**.

@@ -31,7 +31,8 @@ If a criterion here has no smoke, add the smoke. Do not add a unit-test pyramid.
 | E6 | No `.from(` in `kanbons/app/**`. Every table has `supabase/schemas/NN_*.sql` and `kanbons/lib/models/<table>.ts`. | `autonomous` — grep |
 | E7 | PageIntro and nav do not leak developer column names (`num_pl`, `id_cust`). | `felt` — philosophy skill, file:line |
 | E8 | `PurchaseOrder` means the `purchase_orders` row. Form DTOs use `PurchaseOrderInput`. One `MatchProduct` type. | `autonomous` — grep |
-| E9 | Do not reintroduce an unused `po_ingest_runs` TypeScript model. Python may keep writing `purchase_orders`. | `autonomous` — grep |
+| E9 | `po_ingest_runs` is written through `kanbons/lib/models/po_ingest_runs.ts` (extracted vs confirmed diffs). No `.from("po_ingest_runs")` in `app/**`. | `autonomous` — grep |
+| E10 | `/health` returns JSON `{ ok, database }`. New packing slip shows Last reads. Health is not in the nav. | `operator-assisted` — Playwright |
 
 ## Verdict
 

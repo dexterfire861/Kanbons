@@ -37,6 +37,7 @@ test("nav uses warehouse labels", async ({ page }) => {
   await expect(
     nav.getByRole("link", { name: "Warehouse check" })
   ).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Health" })).toHaveCount(0);
 });
 
 for (const item of pages) {
@@ -96,10 +97,23 @@ test("packing lists offer a new packing slip", async ({ page }) => {
   await page.getByRole("link", { name: "New packing slip" }).click();
   await expect(page.getByRole("heading", { name: "New packing slip" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm packing slip" })).toBeVisible();
+  await expect(page.getByLabel("Purchase order PDF")).toBeVisible();
   await expect(page.getByText("How it will look")).toBeVisible();
   await expect(page.getByText("KANBONS LLC")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Packing Slip", exact: true })).toBeVisible();
   await expect(page.getByText("INFO@KANBONS.COM")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Last reads" })).toBeVisible();
+});
+
+test("item code fills from a name match", async ({ page }) => {
+  await load(page, "/packing-lists/new");
+  const asWritten = page.getByLabel("As written on PO");
+  const first = await asWritten.locator("option").nth(1).getAttribute("value");
+  if (!first) {
+    throw new Error("No name matches to pick");
+  }
+  await asWritten.selectOption(first);
+  await expect(page.getByLabel("Item code")).not.toHaveValue("");
 });
 
 test("packing list lines are not dumped on the list page", async ({ page }) => {
@@ -145,4 +159,10 @@ test("warehouse check has no save", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
   await expect(page.locator("form")).toHaveCount(0);
+});
+
+test("health says whether the database is answering", async ({ request }) => {
+  const response = await request.get("/health");
+  expect(response.ok()).toBeTruthy();
+  expect(await response.json()).toEqual({ ok: true, database: true });
 });

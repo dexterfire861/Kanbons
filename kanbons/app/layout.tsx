@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { DbStatus } from "./db-status";
 import { AppNav } from "./nav";
 import "./globals.css";
 
@@ -18,6 +19,8 @@ export const metadata: Metadata = {
   description: "Stock and packing lists",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -26,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <AppNav />
-        {children}
+        <DbStatus>{children}</DbStatus>
       </body>
     </html>
   );
