@@ -7,7 +7,9 @@ create table public.customers (
   zip_code text,
   point_of_contact text,
   id_cust text unique,
-  email_contact text
+  email_contact text,
+  company text
 );
 
 create index customers_name_idx on public.customers (name);
+create index customers_company_idx on public.customers (company);

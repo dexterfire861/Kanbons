@@ -21,3 +21,28 @@ export function requiredNum(formData: FormData, key: string): number {
   if (value == null) throw new Error(`${key} is required`);
   return value;
 }
+
+export function jsonObject<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error("Could not read the submitted form");
+  }
+}
+
+export function jsonArray<T>(raw: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error("Could not read the submitted lines");
+    }
+    return parsed as T[];
+  } catch (error) {
+    if (error instanceof Error && error.message === "Could not read the submitted lines") {
+      throw error;
+    }
+    throw new Error("Could not read the submitted lines");
+  }
+}

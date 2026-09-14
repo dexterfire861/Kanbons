@@ -10,24 +10,27 @@ import {
 import {
   createPackingListLine,
   listPackingListLines,
-  updatePackingListLine,
 } from "./packing_list_lines";
-import { getProduct, listProducts } from "./products";
+import { listProducts } from "./products";
 import { decrementStockByUnits } from "./stock";
 import { DatabaseError } from "./result";
-import { packingSlipFromParts, type PackingSlip, type PurchaseOrder } from "./packing_slip_match";
+import {
+  packingSlipFromParts,
+  type PackingSlip,
+  type PurchaseOrderInput,
+} from "./packing_slip_match";
 
 export type {
   Address,
   PackingSlip,
   PackingSlipLine,
-  PurchaseOrder,
+  PurchaseOrderInput,
   PurchaseOrderLine,
 } from "./packing_slip_match";
 export { packingSlipFromParts, resolveProductId } from "./packing_slip_match";
 
 export async function packingSlipFromPurchaseOrder(
-  po: PurchaseOrder
+  po: PurchaseOrderInput
 ): Promise<PackingSlip> {
   const customer = await getCustomer(po.customerId);
   if (!customer) throw new DatabaseError("Customer not found");
@@ -50,6 +53,7 @@ export async function packingSlipFromPurchaseOrder(
     lines: po.lines,
     products,
     mappings,
+    company: customer.company,
   });
 }
 
@@ -141,21 +145,11 @@ export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
   };
 }
 
-export async function confirmPackingSlip(
-  id: number,
-  lineFixes: { lineId: number; productId: number }[]
-): Promise<void> {
+export async function confirmPackingSlip(id: number): Promise<void> {
   const existing = await getPackingList(id);
   if (!existing) throw new DatabaseError("Packing slip not found");
   if (existing.status === "dispatched") {
     throw new DatabaseError("Already dispatched");
-  }
-  for (const fix of lineFixes) {
-    const product = await getProduct(fix.productId);
-    await updatePackingListLine(fix.lineId, {
-      product_id: fix.productId,
-      pre_uni: product?.pre_uni ?? null,
-    });
   }
   const slip = await loadPackingSlip(id);
   if (!slip) throw new DatabaseError("Packing slip not found");

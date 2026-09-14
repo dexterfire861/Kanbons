@@ -24,19 +24,19 @@ async function productFields(formData: FormData) {
 export async function createShipmentLineAction(formData: FormData) {
   const shipmentId = num(formData, "shipment_id");
   if (shipmentId == null) throw new Error("shipment is required");
-  await createShipmentLine({
+  const row = await createShipmentLine({
     shipment_id: shipmentId,
     ...(await productFields(formData)),
   });
-  revalidatePath(`/shipments/${shipmentId}`);
   revalidatePath("/contador");
+  return row;
 }
 
 export async function updateShipmentLineAction(formData: FormData) {
   const id = num(formData, "id");
   const shipmentId = num(formData, "shipment_id");
   if (id == null || shipmentId == null) throw new Error("id is required");
-  await updateShipmentLine(id, await productFields(formData));
-  revalidatePath(`/shipments/${shipmentId}`);
+  const row = await updateShipmentLine(id, await productFields(formData));
   revalidatePath("/contador");
+  return row;
 }

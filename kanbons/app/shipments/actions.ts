@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { num, requiredNum, text } from "@/lib/form";
+import { jsonArray, num, requiredNum, text } from "@/lib/form";
 import { getProduct } from "@/lib/models/products";
 import { createShipmentWithLines, updateShipment } from "@/lib/models/shipments";
 
@@ -23,11 +23,7 @@ type PostedLine = {
 };
 
 export async function createShipmentAction(formData: FormData) {
-  let posted: PostedLine[] = [];
-  const raw = text(formData, "lines");
-  if (raw) {
-    posted = JSON.parse(raw) as PostedLine[];
-  }
+  const posted = jsonArray<PostedLine>(text(formData, "lines"));
   const lines = [];
   for (const line of posted) {
     const productId = line.product_id ?? null;
@@ -42,15 +38,14 @@ export async function createShipmentAction(formData: FormData) {
       type_of_unit: line.type_of_unit ?? null,
     });
   }
-  await createShipmentWithLines(fields(formData), lines);
+  const row = await createShipmentWithLines(fields(formData), lines);
   revalidatePath("/shipments");
   revalidatePath("/contador");
+  return row;
 }
 
 export async function updateShipmentAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  await updateShipment(id, fields(formData));
-  revalidatePath("/shipments");
-  revalidatePath(`/shipments/${id}`);
+  return updateShipment(id, fields(formData));
 }

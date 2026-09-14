@@ -24,12 +24,38 @@ EXCEL_EPOCH = date(1899, 12, 30)
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parent
-WORKBOOK = WORKSPACE / "rml-system 2.xlsm"
-TEMPLATE = WORKSPACE / "Packing_Slip_Template_2026_V3.xlsx"
+HOURS = Path("/Volumes/HOURS")
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
 )
+
+
+def first_existing(*paths: Path) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+WORKBOOKS = [
+    path
+    for path in (
+        first_existing(HOURS / "rml-system.xlsm", WORKSPACE / "rml-system 2.xlsm"),
+        first_existing(HOURS / "rml-system WOODHAVEN.xlsm"),
+    )
+    if path is not None
+]
+TEMPLATES = [
+    path
+    for path in (
+        first_existing(
+            HOURS / "Packing_Slip_Template_MATTRESS.xlsx",
+            WORKSPACE / "Packing_Slip_Template_2026_V3.xlsx",
+        ),
+    )
+    if path is not None
+]
 
 
 def col_row(cell_ref: str) -> tuple[int, int]:
@@ -306,6 +332,7 @@ def apply_contact_id_cust(customers: list[dict], contact_rows: list[dict]) -> No
                     "point_of_contact": as_text(row.get(4)),
                     "id_cust": code,
                     "email_contact": None,
+                    "company": company_of(company),
                 }
             )
             used_codes.add(code)
@@ -375,33 +402,24 @@ def match_product(
     return None
 
 
-def seed() -> None:
-    if not WORKBOOK.exists():
-        raise SystemExit(f"Missing workbook: {WORKBOOK}")
-    if not TEMPLATE.exists():
-        raise SystemExit(f"Missing template: {TEMPLATE}")
+def company_of(name: str | None) -> str | None:
+    if "WOODHAVEN" in (name or "").upper():
+        return "Woodhaven"
+    return None
 
-    print("Reading Excel…")
-    main = load_workbook_sheets(
-        WORKBOOK,
-        ["Customers", "Product", "Stock", "Shipping", "Packing List"],
-        max_col=16,
-    )
-    tmpl = load_workbook_sheets(TEMPLATE, ["Reconciliation", "Contact"], max_col=8)
 
+def parse_customers(rows: list[dict[int, object]]) -> list[dict]:
     customers = []
     seen_id_cust: set[str] = set()
-    seen_customer_ids: set[int] = set()
-    for row in main["Customers"]:
+    seen_ids: set[int] = set()
+    for row in rows:
         cid = as_int(row.get(1))
         name = as_text(row.get(2))
         if cid is None or not name:
             continue
-        if cid in seen_customer_ids:
-            new_id = max(seen_customer_ids) + 1
-            print(f"  reassigned duplicate customer id {cid} -> {new_id} ({name})")
-            cid = new_id
-        seen_customer_ids.add(cid)
+        if cid in seen_ids:
+            cid = max(seen_ids) + 1
+        seen_ids.add(cid)
         id_cust = as_text(row.get(8))
         if id_cust and id_cust in seen_id_cust:
             id_cust = None
@@ -418,14 +436,54 @@ def seed() -> None:
                 "point_of_contact": as_text(row.get(7)),
                 "id_cust": id_cust,
                 "email_contact": as_text(row.get(9)),
+                "company": company_of(name),
             }
         )
+    return customers
 
-    apply_contact_id_cust(customers, tmpl["Contact"])
 
+def merge_customers(groups: list[list[dict]]) -> list[dict]:
+    by_id: dict[int, dict] = {}
+    by_cust: dict[str, dict] = {}
+
+    def next_id() -> int:
+        return max(by_id) + 1 if by_id else 1
+
+    for group in groups:
+        for raw in group:
+            customer = dict(raw)
+            customer["company"] = company_of(customer.get("name"))
+            code = customer.get("id_cust")
+            if code and code in by_cust:
+                existing = by_cust[code]
+                incoming_wh = customer["company"] == "Woodhaven"
+                existing_wh = existing.get("company") == "Woodhaven"
+                if incoming_wh or not existing_wh:
+                    keep_id = existing["id"]
+                    existing.update(customer)
+                    existing["id"] = keep_id
+                    existing["company"] = company_of(existing.get("name"))
+                continue
+            cid = customer["id"]
+            if cid in by_id:
+                customer["id"] = next_id()
+                cid = customer["id"]
+                print(
+                    f"  reassigned customer id to {cid} ({customer['name']})"
+                )
+            by_id[cid] = customer
+            if code:
+                by_cust[code] = customer
+    return [by_id[cid] for cid in sorted(by_id)]
+
+
+def parse_products(
+    product_rows: list[dict[int, object]],
+    stock_rows: list[dict[int, object]],
+    seen_sku: set[str],
+) -> tuple[list[dict], list[dict[int, object]]]:
     products = []
-    seen_sku: set[str] = set()
-    for row in main["Product"]:
+    for row in product_rows:
         sku = as_text(row.get(1))
         pname = as_text(row.get(2))
         if not sku or not pname or sku in seen_sku:
@@ -442,15 +500,13 @@ def seed() -> None:
                 "pre_uni": as_num(row.get(7)),
             }
         )
-
-    # Stock SKUs missing from Product become stub catalog rows
-    stock_rows = []
-    for row in main["Stock"]:
+    kept_stock = []
+    for row in stock_rows:
         sku = as_text(row.get(1))
         pname = as_text(row.get(2))
         if not sku:
             continue
-        stock_rows.append(row)
+        kept_stock.append(row)
         if sku not in seen_sku and pname:
             seen_sku.add(sku)
             products.append(
@@ -464,11 +520,58 @@ def seed() -> None:
                     "pre_uni": None,
                 }
             )
+    return products, kept_stock
+
+
+def seed() -> None:
+    if not WORKBOOKS:
+        raise SystemExit("Missing rml-system workbook")
+    if not TEMPLATES:
+        raise SystemExit("Missing packing slip template")
+
+    print("Reading Excel…")
+    for path in WORKBOOKS:
+        print(f"  workbook {path}")
+    for path in TEMPLATES:
+        print(f"  template {path}")
+
+    mains = [
+        load_workbook_sheets(
+            path,
+            ["Customers", "Product", "Stock", "Shipping", "Packing List"],
+            max_col=16,
+        )
+        for path in WORKBOOKS
+    ]
+    tmpls = [
+        load_workbook_sheets(path, ["Reconciliation", "Contact"], max_col=8)
+        for path in TEMPLATES
+    ]
+
+    customers = merge_customers([parse_customers(main["Customers"]) for main in mains])
+    contact_rows: list[dict[int, object]] = []
+    recon_rows: list[dict[int, object]] = []
+    for tmpl in tmpls:
+        contact_rows.extend(tmpl["Contact"])
+        recon_rows.extend(tmpl["Reconciliation"])
+    apply_contact_id_cust(customers, contact_rows)
+    for customer in customers:
+        customer["company"] = company_of(customer.get("name"))
+
+    seen_sku: set[str] = set()
+    products: list[dict] = []
+    stock_rows: list[dict[int, object]] = []
+    for main in mains:
+        parsed, stock = parse_products(main["Product"], main["Stock"], seen_sku)
+        products.extend(parsed)
+        stock_rows.extend(stock)
 
     print(
         f"Parsed customers={len(customers)} products={len(products)} "
-        f"stock={len(stock_rows)} shipping_lines={len(main['Shipping'])} "
-        f"packing_lines={len(main['Packing List'])} mappings={len(tmpl['Reconciliation'])}"
+        f"stock={len(stock_rows)} shipping_lines="
+        f"{sum(len(main['Shipping']) for main in mains)} packing_lines="
+        f"{sum(len(main['Packing List']) for main in mains)} "
+        f"mappings={len(recon_rows)}"
     )
 
     conn = psycopg.connect(DATABASE_URL, autocommit=False)
@@ -492,10 +595,11 @@ def seed() -> None:
             cur.executemany(
                 """
                 insert into public.customers
-                  (id, name, address, city, state, zip_code, point_of_contact, id_cust, email_contact)
+                  (id, name, address, city, state, zip_code, point_of_contact,
+                   id_cust, email_contact, company)
                 values
                   (%(id)s, %(name)s, %(address)s, %(city)s, %(state)s, %(zip_code)s,
-                   %(point_of_contact)s, %(id_cust)s, %(email_contact)s)
+                   %(point_of_contact)s, %(id_cust)s, %(email_contact)s, %(company)s)
                 """,
                 customers,
             )
@@ -525,7 +629,7 @@ def seed() -> None:
                 if c["id_cust"]:
                     aliases[norm(c["id_cust"])] = c["id"]
                     aliases[c["id_cust"].replace(" ", "").upper()] = c["id"]
-            for row in tmpl["Contact"]:
+            for row in contact_rows:
                 code = as_text(row.get(1))
                 company = as_text(row.get(2))
                 state = as_text(row.get(3))
@@ -545,7 +649,8 @@ def seed() -> None:
             map_client: dict[str, int] = {}
             map_kanbons: dict[str, int] = {}
             mapping_rows = []
-            for row in tmpl["Reconciliation"]:
+            mapping_keys: set[tuple] = set()
+            for row in recon_rows:
                 client = as_text(row.get(1))
                 kanbons = as_text(row.get(2))
                 item_code = as_text(row.get(3))
@@ -562,23 +667,18 @@ def seed() -> None:
                     map_client[norm(client)] = pid
                     if kanbons:
                         map_kanbons[norm(kanbons)] = pid
+                key = (None, norm(client), item_code or "")
+                if key in mapping_keys:
+                    continue
+                mapping_keys.add(key)
                 mapping_rows.append(
                     {
                         "client_name": client,
                         "kanbons_name": kanbons,
                         "item_code": item_code,
                         "product_id": pid,
+                        "company": None,
                     }
-                )
-            if mapping_rows:
-                cur.executemany(
-                    """
-                    insert into public.product_mappings
-                      (client_name, kanbons_name, item_code, product_id)
-                    values
-                      (%(client_name)s, %(kanbons_name)s, %(item_code)s, %(product_id)s)
-                    """,
-                    mapping_rows,
                 )
 
             counted_at = datetime.now(timezone.utc)
@@ -610,126 +710,147 @@ def seed() -> None:
                     stock_insert,
                 )
 
-            # Shipments: one header per shipping number
-            shipments: dict[int, dict] = {}
+            # Shipments: one header per shipping number *per workbook*
+            shipment_headers: list[dict] = []
             ship_lines = []
             unmatched_ship_products = 0
-            for row in main["Shipping"]:
-                number = as_int(row.get(1))
-                if number is None:
-                    continue
-                if number not in shipments:
-                    shipments[number] = {
-                        "number": number,
-                        "country": as_text(row.get(2)),
-                        "invoice_number": as_text(row.get(3)),
-                        "arrival_date": as_date(row.get(5)),
-                        "departure_date": as_date(row.get(6)),
-                    }
-                sku = as_text(row.get(4))
-                pname = as_text(row.get(7))
-                pid = match_product(pname, sku, by_num, by_name, map_client, map_kanbons)
-                if pid is None:
-                    unmatched_ship_products += 1
-                ship_lines.append(
-                    {
-                        "number": number,
-                        "product_id": pid,
-                        "sku": sku,
-                        "product": pname,
-                        "yards_pcs": as_num(row.get(8)),
-                        "unit": as_int(row.get(9)),
-                        "type_of_unit": shipment_unit(row.get(10)),
-                    }
+            for _source, main in enumerate(mains):
+                by_number: dict[int, int] = {}
+                for row in main["Shipping"]:
+                    number = as_int(row.get(1))
+                    if number is None:
+                        continue
+                    if number not in by_number:
+                        by_number[number] = len(shipment_headers)
+                        shipment_headers.append(
+                            {
+                                "number": number,
+                                "country": as_text(row.get(2)),
+                                "invoice_number": as_text(row.get(3)),
+                                "arrival_date": as_date(row.get(5)),
+                                "departure_date": as_date(row.get(6)),
+                            }
+                        )
+                    sku = as_text(row.get(4))
+                    pname = as_text(row.get(7))
+                    pid = match_product(
+                        pname, sku, by_num, by_name, map_client, map_kanbons
+                    )
+                    if pid is None:
+                        unmatched_ship_products += 1
+                    ship_lines.append(
+                        {
+                            "header_index": by_number[number],
+                            "product_id": pid,
+                            "sku": sku,
+                            "product": pname,
+                            "yards_pcs": as_num(row.get(8)),
+                            "unit": as_int(row.get(9)),
+                            "type_of_unit": shipment_unit(row.get(10)),
+                        }
+                    )
+
+            for header in shipment_headers:
+                cur.execute(
+                    """
+                    insert into public.shipments
+                      (number, country, invoice_number, arrival_date, departure_date)
+                    values
+                      (%(number)s, %(country)s, %(invoice_number)s,
+                       %(arrival_date)s, %(departure_date)s)
+                    returning id
+                    """,
+                    header,
+                )
+                header["id"] = cur.fetchone()[0]
+            for line in ship_lines:
+                line["shipment_id"] = shipment_headers[line["header_index"]]["id"]
+            if ship_lines:
+                cur.executemany(
+                    """
+                    insert into public.shipment_lines
+                      (shipment_id, product_id, sku, product, yards_pcs, unit, type_of_unit)
+                    values
+                      (%(shipment_id)s, %(product_id)s, %(sku)s, %(product)s, %(yards_pcs)s,
+                       %(unit)s, %(type_of_unit)s)
+                    """,
+                    ship_lines,
                 )
 
-            cur.executemany(
-                """
-                insert into public.shipments
-                  (number, country, invoice_number, arrival_date, departure_date)
-                values
-                  (%(number)s, %(country)s, %(invoice_number)s, %(arrival_date)s, %(departure_date)s)
-                """,
-                list(shipments.values()),
-            )
-            cur.execute("select id, number from public.shipments")
-            ship_id_by_number = {num: sid for sid, num in cur.fetchall()}
-            for line in ship_lines:
-                line["shipment_id"] = ship_id_by_number[line["number"]]
-            cur.executemany(
-                """
-                insert into public.shipment_lines
-                  (shipment_id, product_id, sku, product, yards_pcs, unit, type_of_unit)
-                values
-                  (%(shipment_id)s, %(product_id)s, %(sku)s, %(product)s, %(yards_pcs)s,
-                   %(unit)s, %(type_of_unit)s)
-                """,
-                ship_lines,
-            )
-
-            # Packing lists: group by num_pl; if one number has mixed customers, split
+            # Packing lists: group by source + num_pl + customer
             headers: dict[tuple, dict] = {}
             header_order: list[tuple] = []
             pl_lines = []
             unmatched_customers: dict[str, int] = defaultdict(int)
             unmatched_pl_products = 0
             matched_customers = 0
-            for row in main["Packing List"]:
-                num_pl = as_int(row.get(3))
-                customer = as_text(row.get(2))
-                if num_pl is None:
-                    continue
-                key = (num_pl, customer)
-                if key not in headers:
-                    cid = match_customer(customer, customers, aliases)
-                    if cid:
-                        matched_customers += 1
-                    elif customer:
-                        unmatched_customers[customer] += 1
-                    headers[key] = {
-                        "key": key,
-                        "num_pl": num_pl,
-                        "customer_id": cid,
-                        "customer": customer,
-                        "date": as_date(row.get(4)),
-                        "ship_date": as_date(row.get(5)),
-                        "customer_po": as_text(row.get(6)),
-                        "state": as_text(row.get(13)),
-                    }
-                    header_order.append(key)
-                pname = as_text(row.get(7))
-                pid = match_product(pname, None, by_num, by_name, map_client, map_kanbons)
-                if pid is None:
-                    unmatched_pl_products += 1
-                pl_lines.append(
-                    {
-                        "key": key,
-                        "product_id": pid,
-                        "product": pname,
-                        "yards_pieces": as_num(row.get(8)),
-                        "unit": as_int(row.get(9)),
-                        "type_of_unit": as_text(row.get(10)),
-                        "pre_uni": as_num(row.get(11)),
-                    }
-                )
+            company_by_id = {c["id"]: c.get("company") for c in customers}
+            sku_by_id = {pid: num for num, pid in by_num.items()}
+            name_by_id = {
+                by_num[p["num"]]: p["product"] for p in products if p["num"] in by_num
+            }
+
+            for source, main in enumerate(mains):
+                for row in main["Packing List"]:
+                    num_pl = as_int(row.get(3))
+                    customer = as_text(row.get(2))
+                    if num_pl is None:
+                        continue
+                    key = (source, num_pl, customer)
+                    if key not in headers:
+                        cid = match_customer(customer, customers, aliases)
+                        if cid:
+                            matched_customers += 1
+                        elif customer:
+                            unmatched_customers[customer] += 1
+                        headers[key] = {
+                            "key": key,
+                            "num_pl": num_pl,
+                            "customer_id": cid,
+                            "customer": customer,
+                            "company": company_of(customer)
+                            or (company_by_id.get(cid) if cid else None),
+                            "date": as_date(row.get(4)),
+                            "ship_date": as_date(row.get(5)),
+                            "customer_po": as_text(row.get(6)),
+                            "state": as_text(row.get(13)),
+                        }
+                        header_order.append(key)
+                    pname = as_text(row.get(7))
+                    pid = match_product(
+                        pname, None, by_num, by_name, map_client, map_kanbons
+                    )
+                    if pid is None:
+                        unmatched_pl_products += 1
+                    pl_lines.append(
+                        {
+                            "key": key,
+                            "product_id": pid,
+                            "product": pname,
+                            "yards_pieces": as_num(row.get(8)),
+                            "unit": as_int(row.get(9)),
+                            "type_of_unit": as_text(row.get(10)),
+                            "pre_uni": as_num(row.get(11)),
+                        }
+                    )
 
             header_rows = [headers[k] for k in header_order]
-            cur.executemany(
-                """
-                insert into public.packing_lists
-                  (num_pl, customer_id, customer, date, ship_date, customer_po, state)
-                values
-                  (%(num_pl)s, %(customer_id)s, %(customer)s, %(date)s, %(ship_date)s,
-                   %(customer_po)s, %(state)s)
-                """,
-                header_rows,
-            )
-            cur.execute("select id, num_pl, customer from public.packing_lists")
-            pl_ids = {(num_pl, cust): pid for pid, num_pl, cust in cur.fetchall()}
+            for header in header_rows:
+                cur.execute(
+                    """
+                    insert into public.packing_lists
+                      (num_pl, customer_id, customer, date, ship_date, customer_po, state, status)
+                    values
+                      (%(num_pl)s, %(customer_id)s, %(customer)s, %(date)s, %(ship_date)s,
+                       %(customer_po)s, %(state)s, 'dispatched')
+                    returning id
+                    """,
+                    header,
+                )
+                header["id"] = cur.fetchone()[0]
             for line in pl_lines:
-                line["packing_list_id"] = pl_ids[line["key"]]
+                line["packing_list_id"] = headers[line["key"]]["id"]
 
-            # insert in chunks — 33k rows
             chunk = 1000
             sql = """
                 insert into public.packing_list_lines
@@ -741,6 +862,38 @@ def seed() -> None:
             for i in range(0, len(pl_lines), chunk):
                 cur.executemany(sql, pl_lines[i : i + chunk])
                 print(f"  packing list lines {min(i + chunk, len(pl_lines))}/{len(pl_lines)}")
+
+            for line in pl_lines:
+                header = headers[line["key"]]
+                company = header.get("company")
+                pname = line.get("product")
+                pid = line.get("product_id")
+                if company != "Woodhaven" or not pname or pid is None:
+                    continue
+                key = (company, norm(pname), sku_by_id.get(pid) or "")
+                if key in mapping_keys:
+                    continue
+                mapping_keys.add(key)
+                mapping_rows.append(
+                    {
+                        "client_name": pname,
+                        "kanbons_name": name_by_id.get(pid),
+                        "item_code": sku_by_id.get(pid),
+                        "product_id": pid,
+                        "company": company,
+                    }
+                )
+            if mapping_rows:
+                cur.executemany(
+                    """
+                    insert into public.product_mappings
+                      (client_name, kanbons_name, item_code, product_id, company)
+                    values
+                      (%(client_name)s, %(kanbons_name)s, %(item_code)s, %(product_id)s,
+                       %(company)s)
+                    """,
+                    mapping_rows,
+                )
 
             cur.execute(
                 """
@@ -755,7 +908,9 @@ def seed() -> None:
                   (select count(*) from public.packing_list_lines) as packing_list_lines,
                   (select count(*) from public.packing_lists where customer_id is not null) as pl_with_customer,
                   (select count(*) from public.packing_list_lines where product_id is not null) as pll_with_product,
-                  (select count(*) from public.shipment_lines where product_id is not null) as sl_with_product
+                  (select count(*) from public.shipment_lines where product_id is not null) as sl_with_product,
+                  (select count(*) from public.customers where company is not null) as customers_with_company,
+                  (select count(*) from public.product_mappings where company is not null) as mappings_with_company
                 """
             )
             counts = cur.fetchone()
@@ -771,6 +926,8 @@ def seed() -> None:
                 "pl_with_customer",
                 "pll_with_product",
                 "sl_with_product",
+                "customers_with_company",
+                "mappings_with_company",
             ]
             print("Loaded:")
             for label, n in zip(labels, counts):

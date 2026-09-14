@@ -82,7 +82,7 @@ export default async function ConfirmPackingSlipPage({
       ) : (
         <form action={confirmSlipAction} className="mt-6">
           <input type="hidden" name="id" value={id} />
-          <button type="submit" className="border border-zinc-800 px-3 py-1 text-sm">
+          <button type="submit" className="btn-primary">
             Confirm packing slip
           </button>
         </form>

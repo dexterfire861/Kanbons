@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
-import { NavTiming } from "./nav-timing";
+import { DbStatus } from "./db-status";
+import { AppNav } from "./nav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,16 +19,7 @@ export const metadata: Metadata = {
   description: "Stock and packing lists",
 };
 
-const nav = [
-  { href: "/", label: "Home" },
-  { href: "/customers", label: "Customers" },
-  { href: "/products", label: "Products" },
-  { href: "/product-mappings", label: "Name matches" },
-  { href: "/stock", label: "Stock" },
-  { href: "/shipments", label: "Incoming containers" },
-  { href: "/packing-lists", label: "Packing lists" },
-  { href: "/contador", label: "Warehouse check" },
-];
+export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -37,15 +28,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <nav className="flex flex-wrap gap-x-4 gap-y-2 border-b border-zinc-200 bg-white px-6 py-3 text-sm">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:underline">
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <NavTiming />
-        {children}
+        <AppNav />
+        <DbStatus>{children}</DbStatus>
       </body>
     </html>
   );

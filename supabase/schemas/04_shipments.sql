@@ -9,3 +9,4 @@ create table public.shipments (
 
 create index shipments_number_idx on public.shipments (number);
 create index shipments_invoice_number_idx on public.shipments (invoice_number);
+create index shipments_arrival_date_idx on public.shipments (arrival_date);

@@ -24,19 +24,19 @@ async function productFields(formData: FormData) {
 export async function createPackingListLineAction(formData: FormData) {
   const packingListId = num(formData, "packing_list_id");
   if (packingListId == null) throw new Error("packing list is required");
-  await createPackingListLine({
+  const row = await createPackingListLine({
     packing_list_id: packingListId,
     ...(await productFields(formData)),
   });
-  revalidatePath(`/packing-lists/${packingListId}`);
   revalidatePath("/contador");
+  return row;
 }
 
 export async function updatePackingListLineAction(formData: FormData) {
   const id = num(formData, "id");
   const packingListId = num(formData, "packing_list_id");
   if (id == null || packingListId == null) throw new Error("id is required");
-  await updatePackingListLine(id, await productFields(formData));
-  revalidatePath(`/packing-lists/${packingListId}`);
+  const row = await updatePackingListLine(id, await productFields(formData));
   revalidatePath("/contador");
+  return row;
 }
