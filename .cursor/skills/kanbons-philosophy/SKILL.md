@@ -28,6 +28,7 @@ List each finding as **pass** or **violate**. Violations must include file:line 
 - One SQL file per table remains the database truth; one typed model module per table is the app truth.
 - Pages are thin: Server Actions call model functions; OCR can later import those same functions.
 - `po_ingest_runs` records each PO PDF read (duration, failed / unmatched / saved) and New packing slip lists Last reads.
+- Prometheus `/metrics` and Grafana are operator-only (not warehouse nav).
 - Contador is read-only; warehouse counts are edited on Stock.
 
 Score every `EVALUATION.md` criterion. Harness failures or any violate → **block**.

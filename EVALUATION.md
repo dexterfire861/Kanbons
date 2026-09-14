@@ -33,6 +33,7 @@ If a criterion here has no smoke, add the smoke. Do not add a unit-test pyramid.
 | E8 | `PurchaseOrder` means the `purchase_orders` row. Form DTOs use `PurchaseOrderInput`. One `MatchProduct` type. | `autonomous` — grep |
 | E9 | `po_ingest_runs` is written through `kanbons/lib/models/po_ingest_runs.ts` (extracted vs confirmed diffs). No `.from("po_ingest_runs")` in `app/**`. | `autonomous` — grep |
 | E10 | `/health` returns JSON `{ ok, database }`. New packing slip shows Last reads. Health is not in the nav. | `operator-assisted` — Playwright |
+| E11 | `/metrics` is Prometheus text with `kanbons_database_up`. Nav has no Metrics, Prometheus, or Grafana. | `operator-assisted` — Playwright |
 
 ## Verdict
 

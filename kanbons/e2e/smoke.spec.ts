@@ -38,6 +38,9 @@ test("nav uses warehouse labels", async ({ page }) => {
     nav.getByRole("link", { name: "Warehouse check" })
   ).toBeVisible();
   await expect(nav.getByRole("link", { name: "Health" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Metrics" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Prometheus" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Grafana" })).toHaveCount(0);
 });
 
 for (const item of pages) {
@@ -165,4 +168,11 @@ test("health says whether the database is answering", async ({ request }) => {
   const response = await request.get("/health");
   expect(response.ok()).toBeTruthy();
   expect(await response.json()).toEqual({ ok: true, database: true });
+});
+
+test("metrics expose database up for Prometheus", async ({ request }) => {
+  const response = await request.get("/metrics");
+  expect(response.ok()).toBeTruthy();
+  const body = await response.text();
+  expect(body).toContain("kanbons_database_up");
 });

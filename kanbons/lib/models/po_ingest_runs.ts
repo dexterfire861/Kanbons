@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { Database, Json } from "@/lib/database.types";
 import { DatabaseError, ok, okMaybe } from "./result";
+import { observePoRead } from "@/lib/metrics";
 import type { Address } from "./packing_slip_match";
 
 export type PoIngestRun = Database["public"]["Tables"]["po_ingest_runs"]["Row"];
@@ -41,9 +42,11 @@ export async function getPoIngestRun(id: number): Promise<PoIngestRun | null> {
 export async function createPoIngestRun(
   input: PoIngestRunInsert
 ): Promise<PoIngestRun> {
-  return ok(
+  const row = ok(
     await supabase.from("po_ingest_runs").insert(input).select("*").single()
   );
+  observePoRead(row.status, row.duration_ms);
+  return row;
 }
 
 export type PoReadResult = "Read" | "Needs you" | "Could not read";
@@ -103,7 +106,7 @@ export async function updatePoIngestRun(
   id: number,
   input: PoIngestRunUpdate
 ): Promise<PoIngestRun> {
-  return ok(
+  const row = ok(
     await supabase
       .from("po_ingest_runs")
       .update(input)
@@ -111,6 +114,10 @@ export async function updatePoIngestRun(
       .select("*")
       .single()
   );
+  if (input.status === "saved") {
+    observePoRead("saved", row.duration_ms);
+  }
+  return row;
 }
 
 export function snapshotJson(snapshot: PoCorrectionSnapshot): Json {
