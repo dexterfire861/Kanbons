@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { num, requiredText, text } from "@/lib/form";
 import {
   createProductMapping,
@@ -16,11 +17,21 @@ function fields(formData: FormData) {
 }
 
 export async function createProductMappingAction(formData: FormData) {
-  return createProductMapping(fields(formData));
+  const company = text(formData, "company");
+  const row = await createProductMapping({
+    ...fields(formData),
+    company: company === "Woodhaven" ? "Woodhaven" : null,
+  });
+  revalidatePath("/product-mappings");
+  revalidatePath("/changes");
+  return row;
 }
 
 export async function updateProductMappingAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  return updateProductMapping(id, fields(formData));
+  const row = await updateProductMapping(id, fields(formData));
+  revalidatePath("/product-mappings");
+  revalidatePath("/changes");
+  return row;
 }

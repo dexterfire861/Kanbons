@@ -23,8 +23,8 @@ If a criterion here has no smoke, add the smoke. Do not add a unit-test pyramid.
 
 | ID | Criterion | Verify |
 | --- | --- | --- |
-| E1 | Nav shows Home, Customers, Products, Name matches, Stock, Incoming containers, Packing lists, Warehouse check. Each listed route (and Home) loads with that heading. | `operator-assisted` — Playwright |
-| E2 | Customers Add has no `name="id"` field. Warehouse check has no Save button and no form. | `operator-assisted` — Playwright |
+| E1 | Nav shows Home, Customers, Products, Name matches, Stock, Incoming containers, Packing lists, Warehouse check. Each listed route (and Home) loads with that heading. Home shows the Kanbons navy bar and logo. | `operator-assisted` — Playwright |
+| E2 | Customers Add has no `name="id"` field. Warehouse check has no page-level Save. The comparison table is not a form. Adjust count is a dialog that writes through Stock. | `operator-assisted` — Playwright |
 | E3 | Packing-list and shipment lines are not on the list pages. `/packing-lists/[id]` and `/shipments/[id]` show the Yards / pieces column even when the live DB started empty (seed in Playwright setup). | `operator-assisted` — Playwright |
 | E4 | Packing-list inline add does not ask the worker to type a generated number. | `operator-assisted` — Playwright (`Assigned on save`) |
 | E5 | No `debugLog`, `127.0.0.1:7252`, `NavTiming`, or `#region agent log` under `kanbons/`. | `autonomous` — grep |

@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
-import { ok, okList, okMaybe } from "./result";
+import { DatabaseError, ok, okList, okMaybe } from "./result";
 
 export type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export type CustomerInsert = Omit<
@@ -43,4 +43,17 @@ export async function updateCustomer(
   return ok(
     await supabase.from("customers").update(input).eq("id", id).select("*").single()
   );
+}
+
+export async function deleteCustomer(id: number): Promise<void> {
+  const result = await supabase.from("customers").delete().eq("id", id);
+  if (result.error) {
+    const message = result.error.message;
+    if (message.includes("packing_lists") || message.includes("purchase_orders")) {
+      throw new DatabaseError(
+        "This customer still has packing lists. Finish those first."
+      );
+    }
+    throw new DatabaseError(message);
+  }
 }

@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { num, requiredText, text } from "@/lib/form";
-import { createCustomer, updateCustomer } from "@/lib/models/customers";
+import {
+  createCustomer,
+  deleteCustomer,
+  updateCustomer,
+} from "@/lib/models/customers";
 
 function fields(formData: FormData) {
   return {
@@ -27,4 +31,9 @@ export async function updateCustomerAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
   return updateCustomer(id, fields(formData));
+}
+
+export async function deleteCustomerAction(id: number) {
+  await deleteCustomer(id);
+  revalidatePath("/customers");
 }

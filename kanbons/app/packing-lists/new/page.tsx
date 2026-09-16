@@ -31,8 +31,10 @@ export default async function NewPackingSlipPage() {
         what="Drop a purchase order PDF or type the lines. The packing slip on the right updates as you go. Empty fields say Needs you. Fields you change after the read are marked You changed this. Confirm when it looks right."
         columns={[
           { name: "Purchase order PDF", meaning: "We read the PDF and fill what we can, including Item code when it is in Products or Name matches." },
+          { name: "Ship to / Bill to", meaning: "Find a customer by name or customer code to fill that block. Ship to also sets Customer. Bill to only fills Bill to." },
           { name: "As written", meaning: "Pick the customer name from Name matches, or keep the wording from the PDF." },
-          { name: "Confirm", meaning: "Saves the official packing list from this pane. Names must match." },
+          { name: "Our product", meaning: "If the name is new, pick our SKU here instead of leaving for Name matches." },
+          { name: "Confirm", meaning: "Saves the packing list. New names can be saved so the next order finds them." },
         ]}
       />
       <PurchaseOrderForm
@@ -41,6 +43,7 @@ export default async function NewPackingSlipPage() {
           name: customer.name,
           id_cust: customer.id_cust,
           company: customer.company,
+          point_of_contact: customer.point_of_contact,
           address: customer.address,
           city: customer.city,
           state: customer.state,
@@ -51,6 +54,7 @@ export default async function NewPackingSlipPage() {
           num: product.num,
           product: product.product,
           pre_uni: product.pre_uni,
+          unit_pack: product.unit_pack,
         }))}
         mappings={mappings.map((mapping) => ({
           client_name: mapping.client_name,

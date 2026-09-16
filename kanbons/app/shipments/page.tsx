@@ -1,22 +1,20 @@
-import { listShipments } from "@/lib/models/shipments";
+import { listShipmentCountryTiles } from "@/lib/models/shipments";
 import { PageIntro } from "@/app/ui/page-intro";
 import { ShipmentAddDialog } from "./add-dialog";
-import { ShipmentSheet } from "./sheet";
+import { CountryTiles } from "./tiles";
 
 export default async function ShipmentsPage() {
-  const rows = await listShipments();
+  const tiles = await listShipmentCountryTiles();
 
   return (
     <main className="p-6">
       <PageIntro
         title="Incoming containers"
-        what="Shipments we received. Showing the 150 most recent. Add a container with all of its products at once. Open Lines to change them later."
+        what="Shipments grouped by country. Open a container to see or change its products. Add a container with all of its products at once."
         columns={[
-          { name: "Number", meaning: "Our shipping number." },
-          { name: "Country", meaning: "Where it came from." },
-          { name: "Invoice number", meaning: "Supplier invoice on this shipment." },
-          { name: "Arrival / Departure", meaning: "Dates on the shipment." },
-          { name: "Lines", meaning: "Products on this container." },
+          { name: "Country", meaning: "Where the containers came from." },
+          { name: "Products", meaning: "What we have received from that country." },
+          { name: "Recent containers", meaning: "The five most recent, with invoice and arrival." },
         ]}
       />
 
@@ -24,7 +22,11 @@ export default async function ShipmentsPage() {
         <ShipmentAddDialog />
       </div>
 
-      <ShipmentSheet rows={rows} />
+      {tiles.length === 0 ? (
+        <p className="page-note">No containers yet.</p>
+      ) : (
+        <CountryTiles tiles={tiles} />
+      )}
     </main>
   );
 }

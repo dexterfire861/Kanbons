@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import type { Customer } from "@/lib/models/customers";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
-import { updateCustomerAction } from "./actions";
+import { CustomerAddDialog } from "./add-dialog";
+import { deleteCustomerAction, updateCustomerAction } from "./actions";
 
 function str(value: string | null | undefined) {
   return value ?? "";
@@ -22,16 +23,42 @@ function fieldsOf(row: Customer) {
   };
 }
 
-function Row({ row }: { row: Customer }) {
+function Row({
+  row,
+  onRemoved,
+}: {
+  row: Customer;
+  onRemoved: (id: number) => void;
+}) {
   const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
     required: ["name"],
     action: updateCustomerAction,
   });
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+
+  async function remove() {
+    if (!window.confirm(`Remove ${row.name} from Customers?`)) return;
+    setRemoving(true);
+    setRemoveError("");
+    try {
+      await deleteCustomerAction(row.id);
+      onRemoved(row.id);
+    } catch (caught) {
+      setRemoveError(caught instanceof Error ? caught.message : "Couldn't remove");
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   return (
-    <AutosaveRow state={state} error={error} onSave={save}>
+    <AutosaveRow
+      state={removeError ? "error" : state}
+      error={removeError || error}
+      onSave={save}
+    >
       <td>
         <Cell required value={values.name} onChange={(value) => setField("name", value)} onSave={save} />
       </td>
@@ -64,6 +91,16 @@ function Row({ row }: { row: Customer }) {
           onSave={save}
         />
       </td>
+      <td>
+        <button
+          type="button"
+          className="border border-zinc-400 px-2 py-0.5 text-sm"
+          disabled={removing}
+          onClick={() => void remove()}
+        >
+          Remove
+        </button>
+      </td>
     </AutosaveRow>
   );
 }
@@ -75,27 +112,41 @@ export function CustomerSheet({ rows: initial }: { rows: Customer[] }) {
   }, [initial]);
 
   return (
-    <div className="sheet">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Customer code</th>
-            <th>City</th>
-            <th>State</th>
-            <th>Address</th>
-            <th>ZIP</th>
-            <th>Contact</th>
-            <th>Email</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <Row key={row.id} row={row} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="mb-4">
+        <CustomerAddDialog
+          onCreated={(row) => setRows((current) => [row, ...current])}
+        />
+      </div>
+      <div className="sheet">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Customer code</th>
+              <th>City</th>
+              <th>State</th>
+              <th>Address</th>
+              <th>ZIP</th>
+              <th>Contact</th>
+              <th>Email</th>
+              <th>Remove</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <Row
+                key={row.id}
+                row={row}
+                onRemoved={(id) =>
+                  setRows((current) => current.filter((item) => item.id !== id))
+                }
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

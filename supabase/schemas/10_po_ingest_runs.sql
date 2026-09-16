@@ -7,6 +7,7 @@ create table public.po_ingest_runs (
   status text not null
     check (status in ('failed', 'unmatched', 'saved')),
   failure_reason text,
+  issues jsonb,
   duration_ms integer,
   packing_list_id bigint references public.packing_lists (id),
   gold_json jsonb,

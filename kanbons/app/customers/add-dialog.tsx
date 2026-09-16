@@ -1,9 +1,14 @@
 "use client";
 
 import { useRef } from "react";
+import type { Customer } from "@/lib/models/customers";
 import { createCustomerAction } from "./actions";
 
-export function CustomerAddDialog() {
+export function CustomerAddDialog({
+  onCreated,
+}: {
+  onCreated?: (row: Customer) => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
 
   return (
@@ -23,7 +28,8 @@ export function CustomerAddDialog() {
         <form
           className="dialog-fields"
           action={async (formData) => {
-            await createCustomerAction(formData);
+            const row = await createCustomerAction(formData);
+            onCreated?.(row);
             dialog.current?.close();
           }}
         >

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class PurchaseOrderLine(BaseModel):
     description: str | None = None
     item_code: str | None = None
+    alt_code: str | None = None
     quantity: float | None = None
     um: str | None = None
     unit_price: float | None = None
@@ -28,6 +29,11 @@ class PurchaseOrder(BaseModel):
     ship_to_city: str | None = None
     ship_to_state: str | None = None
     ship_to_zip: str | None = None
+    bill_to_name: str | None = None
+    bill_to_address: str | None = None
+    bill_to_city: str | None = None
+    bill_to_state: str | None = None
+    bill_to_zip: str | None = None
     source_path: str | None = None
     ocr_markdown: str | None = None
     status: str = "needs_review"

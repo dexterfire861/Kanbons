@@ -36,6 +36,7 @@ export type ParsedPoDraft = {
   date: string | null;
   shipDate: string | null;
   shipTo: Address;
+  billTo: Address;
   lines: ParsedPoLine[];
   issues: string[];
   ocrMarkdown: string | null;
@@ -66,6 +67,11 @@ type ReviewJson = {
   ship_to_city?: string | null;
   ship_to_state?: string | null;
   ship_to_zip?: string | null;
+  bill_to_name?: string | null;
+  bill_to_address?: string | null;
+  bill_to_city?: string | null;
+  bill_to_state?: string | null;
+  bill_to_zip?: string | null;
   lines?: Array<{
     description?: string | null;
     item_code?: string | null;
@@ -188,17 +194,33 @@ export async function parsePurchaseOrderPdf(
     }
     const draft = fromReviewJson(parsed, filename);
     const lineCount = draft.lines.filter((line) => line.asWritten).length;
-    const recordedIssues = [...draft.issues];
-    if (draft.customerId == null) recordedIssues.push("No customer");
-    if (lineCount === 0) recordedIssues.push("No product lines");
+    const recordedIssues: string[] = [];
+    for (const issue of [...draft.issues]) {
+      if (issue.trim() && !recordedIssues.includes(issue.trim())) {
+        recordedIssues.push(issue.trim());
+      }
+    }
+    if (draft.customerId == null && !recordedIssues.includes("No customer")) {
+      recordedIssues.push("No customer");
+    }
+    if (lineCount === 0 && !recordedIssues.includes("No product lines")) {
+      recordedIssues.push("No product lines");
+    }
+    const unmatchedNames = draft.lines
+      .filter((line) => line.asWritten && line.productId == null)
+      .map((line) => `No name match for: ${line.asWritten}`);
+    for (const issue of unmatchedNames) {
+      if (!recordedIssues.includes(issue)) recordedIssues.push(issue);
+    }
     const run = await recordPoRead({
       filename,
       durationMs: Date.now() - started,
       status: "unmatched",
       failure_reason: recordedIssues.length > 0 ? recordedIssues.join("; ") : null,
+      issues: recordedIssues,
       extracted: draftSnapshot(draft),
     });
-    return { ...draft, ingestRunId: run?.id ?? null };
+    return { ...draft, issues: recordedIssues, ingestRunId: run?.id ?? null };
   } catch (error) {
     console.error("parsePurchaseOrderPdf", error);
     const detail = error instanceof Error ? error.message : String(error);
@@ -207,6 +229,7 @@ export async function parsePurchaseOrderPdf(
       durationMs: Date.now() - started,
       status: "failed",
       failure_reason: detail,
+      issues: [detail],
       extracted: null,
     });
     throw new Error(
@@ -222,6 +245,7 @@ async function recordPoRead(input: {
   durationMs: number;
   status: "failed" | "unmatched";
   failure_reason: string | null;
+  issues: string[];
   extracted: PoCorrectionSnapshot | null;
 }): Promise<{ id: number } | null> {
   try {
@@ -231,6 +255,7 @@ async function recordPoRead(input: {
       duration_ms: input.durationMs,
       status: input.status,
       failure_reason: input.failure_reason,
+      issues: input.issues,
       extracted_json: input.extracted ? snapshotJson(input.extracted) : null,
     });
   } catch (error) {
@@ -246,7 +271,7 @@ export function draftSnapshot(draft: ParsedPoDraft): PoCorrectionSnapshot {
     date: draft.date ?? "",
     shipDate: draft.shipDate ?? "",
     shipTo: draft.shipTo,
-    billTo: draft.shipTo,
+    billTo: draft.billTo,
     lines: draft.lines.map((line) => ({
       asWritten: line.asWritten,
       itemCode: line.itemCode,
@@ -280,6 +305,13 @@ function fromReviewJson(raw: ReviewJson, filename: string): ParsedPoDraft {
       city: raw.ship_to_city ?? null,
       state: raw.ship_to_state ?? null,
       zip: raw.ship_to_zip ?? null,
+    },
+    billTo: {
+      name: raw.bill_to_name ?? raw.ship_to_name ?? null,
+      address: raw.bill_to_address ?? raw.ship_to_address ?? null,
+      city: raw.bill_to_city ?? raw.ship_to_city ?? null,
+      state: raw.bill_to_state ?? raw.ship_to_state ?? null,
+      zip: raw.bill_to_zip ?? raw.ship_to_zip ?? null,
     },
     lines: lines.length > 0
       ? lines

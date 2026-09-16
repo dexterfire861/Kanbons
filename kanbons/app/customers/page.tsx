@@ -1,6 +1,5 @@
 import { listCustomers } from "@/lib/models/customers";
 import { PageIntro } from "@/app/ui/page-intro";
-import { CustomerAddDialog } from "./add-dialog";
 import { CustomerSheet } from "./sheet";
 
 export default async function CustomersPage() {
@@ -16,12 +15,12 @@ export default async function CustomersPage() {
           { name: "Customer code", meaning: "Short code (for example SOLTX)." },
           { name: "Address / City / State / ZIP", meaning: "Ship-to address." },
           { name: "Contact / Email", meaning: "Who we talk to at that company." },
+          {
+            name: "Remove",
+            meaning: "Deletes this company. You cannot remove someone who still has packing lists.",
+          },
         ]}
       />
-
-      <div className="mb-4">
-        <CustomerAddDialog />
-      </div>
 
       <CustomerSheet rows={rows} />
     </main>

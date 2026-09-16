@@ -11,6 +11,7 @@ import {
   type Address,
   type PurchaseOrderLine,
 } from "@/lib/models/packing_slip";
+import { createProductMapping } from "@/lib/models/product_mappings";
 import {
   parsePurchaseOrderPdf,
   saveConfirmedPurchaseOrder,
@@ -20,6 +21,7 @@ import {
   createPoIngestRun,
   diffPoFields,
   diffsJson,
+  getPoIngestRun,
   snapshotJson,
   updatePoIngestRun,
   type PoCorrectionSnapshot,
@@ -44,8 +46,28 @@ type PostedLine = {
   productId?: number | null;
 };
 
+type PostedNameMatch = {
+  client_name?: string;
+  kanbons_name?: string | null;
+  item_code?: string | null;
+  product_id?: number | null;
+  company?: string | null;
+};
+
 export async function createAndConfirmFromPoAction(formData: FormData) {
   const posted = jsonArray<PostedLine>(text(formData, "lines"));
+  const nameMatches = jsonArray<PostedNameMatch>(text(formData, "name_matches"));
+  for (const match of nameMatches) {
+    const clientName = match.client_name?.trim() ?? "";
+    if (!clientName || match.product_id == null) continue;
+    await createProductMapping({
+      client_name: clientName,
+      kanbons_name: match.kanbons_name?.trim() || null,
+      item_code: match.item_code?.trim() || null,
+      product_id: match.product_id,
+      company: match.company === "Woodhaven" ? "Woodhaven" : null,
+    });
+  }
   const lines: PurchaseOrderLine[] = posted
     .filter((line) => line.asWritten || line.unit)
     .map((line) => ({
@@ -98,8 +120,6 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
     issues: issues ? issues.split("\n").filter(Boolean) : [],
   });
   const ingestRunId = num(formData, "ingest_run_id");
-  const extracted =
-    jsonObject<PoCorrectionSnapshot>(text(formData, "ocr_snapshot")) ?? null;
   const gold: PoCorrectionSnapshot = {
     customerId: String(slip.customerId),
     customerPo: slip.customerPo,
@@ -116,16 +136,21 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
       productId: line.productId,
     })),
   };
-  const resolved = diffPoFields(extracted, gold);
+  let extracted =
+    jsonObject<PoCorrectionSnapshot>(text(formData, "ocr_snapshot")) ?? null;
   try {
     if (ingestRunId != null) {
+      const run = await getPoIngestRun(ingestRunId);
+      const stored = run?.extracted_json;
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        extracted = stored as PoCorrectionSnapshot;
+      }
       await updatePoIngestRun(ingestRunId, {
         packing_list_id: row.id,
         status: "saved",
         failure_reason: null,
-        extracted_json: extracted ? snapshotJson(extracted) : undefined,
         gold_json: snapshotJson(gold),
-        resolved_json: diffsJson(resolved),
+        resolved_json: diffsJson(diffPoFields(extracted, gold)),
       });
     } else {
       await createPoIngestRun({
@@ -135,7 +160,7 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
         status: "saved",
         extracted_json: extracted ? snapshotJson(extracted) : null,
         gold_json: snapshotJson(gold),
-        resolved_json: diffsJson(resolved),
+        resolved_json: diffsJson(diffPoFields(extracted, gold)),
       });
     }
   } catch (error) {
@@ -144,20 +169,22 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
   revalidatePath("/packing-lists");
   revalidatePath("/packing-lists/new");
   revalidatePath(`/packing-lists/${row.id}`);
+  revalidatePath("/product-mappings");
   redirect(`/packing-lists/${row.id}`);
 }
 
 export async function readPoPdfAction(formData: FormData): Promise<ParsedPoDraft> {
   const file = formData.get("pdf");
-  if (!(file instanceof File) || file.size === 0) {
+  if (file == null || typeof file === "string" || file.size === 0) {
     throw new Error("Choose a purchase order PDF");
   }
-  const name = file.name.toLowerCase();
-  if (file.type && file.type !== "application/pdf" && !name.endsWith(".pdf")) {
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const name =
+    "name" in file && typeof file.name === "string" ? file.name : "po.pdf";
+  if (file.type && file.type !== "application/pdf" && !name.toLowerCase().endsWith(".pdf")) {
     throw new Error("That file is not a PDF");
   }
-  const bytes = Buffer.from(await file.arrayBuffer());
-  return parsePurchaseOrderPdf(bytes, file.name);
+  return parsePurchaseOrderPdf(bytes, name);
 }
 
 export async function confirmSlipAction(formData: FormData) {
@@ -175,4 +202,5 @@ export async function dispatchSlipAction(formData: FormData) {
   revalidatePath(`/packing-lists/${id}`);
   revalidatePath("/stock");
   revalidatePath("/contador");
+  revalidatePath("/changes");
 }

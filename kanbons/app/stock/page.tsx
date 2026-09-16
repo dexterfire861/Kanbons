@@ -1,19 +1,17 @@
-import { listProductOptions } from "@/lib/models/products";
-import { listStock } from "@/lib/models/stock";
+import Link from "next/link";
+import { listStockPage } from "@/lib/models/stock";
+import { FindBar } from "@/app/ui/find-bar";
 import { PageIntro } from "@/app/ui/page-intro";
+import { ChangeStockDialog } from "./change-dialog";
 import { StockSheet } from "./sheet";
 
-export default async function StockPage() {
-  const [stock, products] = await Promise.all([
-    listStock(),
-    listProductOptions(),
-  ]);
-  const byId = Object.fromEntries(
-    products.map((product) => [
-      product.id,
-      { num: product.num, product: product.product },
-    ])
-  );
+export default async function StockPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const stock = await listStockPage({ q });
 
   return (
     <main className="p-6">
@@ -28,7 +26,31 @@ export default async function StockPage() {
         ]}
       />
 
-      <StockSheet rows={stock} products={byId} />
+      <p className="page-note">
+        <Link href="/changes" className="underline">
+          Change history
+        </Link>
+      </p>
+
+      <FindBar action="/stock" label="Find a product" defaultValue={q} />
+
+      <div className="mb-4">
+        <ChangeStockDialog rows={stock} />
+      </div>
+
+      {q ? (
+        <p className="page-note">
+          {stock.length === 0
+            ? "No stock rows match that search."
+            : `Showing ${stock.length} match${stock.length === 1 ? "" : "es"}.`}
+        </p>
+      ) : (
+        <p className="page-note">
+          Showing the first {stock.length} stock rows. Type to find a product.
+        </p>
+      )}
+
+      <StockSheet rows={stock} />
     </main>
   );
 }

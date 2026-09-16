@@ -41,11 +41,15 @@ export async function createShipmentAction(formData: FormData) {
   const row = await createShipmentWithLines(fields(formData), lines);
   revalidatePath("/shipments");
   revalidatePath("/contador");
+  revalidatePath("/changes");
   return row;
 }
 
 export async function updateShipmentAction(formData: FormData) {
   const id = num(formData, "id");
   if (id == null) throw new Error("id is required");
-  return updateShipment(id, fields(formData));
+  const row = await updateShipment(id, fields(formData));
+  revalidatePath("/shipments");
+  revalidatePath("/changes");
+  return row;
 }

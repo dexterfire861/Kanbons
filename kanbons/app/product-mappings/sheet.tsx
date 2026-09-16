@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import type { ProductMapping } from "@/lib/models/product_mappings";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
 import { cachedProductOptions, Choice } from "@/app/ui/choice";
-import {
-  createProductMappingAction,
-  updateProductMappingAction,
-} from "./actions";
+import { updateProductMappingAction } from "./actions";
 
 function str(value: string | number | null | undefined) {
   return value == null ? "" : String(value);
@@ -28,13 +25,6 @@ function fieldsOf(row: ProductMapping): Fields {
     product_id: str(row.product_id),
   };
 }
-
-const empty: Fields = {
-  client_name: "",
-  kanbons_name: "",
-  item_code: "",
-  product_id: "",
-};
 
 function MappingFields({
   values,
@@ -116,24 +106,6 @@ function ExistingRow({
   );
 }
 
-function NewRow({
-  onCreated,
-}: {
-  onCreated: (row: ProductMapping) => void;
-}) {
-  const { values, setField, save, state, error } = useAutosave({
-    initial: empty,
-    required: ["client_name"],
-    action: createProductMappingAction,
-    onSaved: (result) => onCreated(result as ProductMapping),
-  });
-  return (
-    <AutosaveRow state={state} error={error} onSave={save}>
-      <MappingFields values={values} setField={setField} save={save} />
-    </AutosaveRow>
-  );
-}
-
 export function ProductMappingSheet({
   rows: initial,
   productLabels,
@@ -142,7 +114,6 @@ export function ProductMappingSheet({
   productLabels: Record<number, string>;
 }) {
   const [rows, setRows] = useState(initial);
-  const [draft, setDraft] = useState(0);
   useEffect(() => {
     setRows(initial);
   }, [initial]);
@@ -160,13 +131,6 @@ export function ProductMappingSheet({
           </tr>
         </thead>
         <tbody>
-          <NewRow
-            key={draft}
-            onCreated={(row) => {
-              setRows((current) => [row, ...current]);
-              setDraft((key) => key + 1);
-            }}
-          />
           {rows.map((row) => (
             <ExistingRow
               key={row.id}

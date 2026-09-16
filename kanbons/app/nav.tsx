@@ -23,18 +23,22 @@ export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap gap-x-4 gap-y-2 border-b border-zinc-200 bg-white px-6 py-3 text-sm">
-      {nav.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={
-            current(pathname, item.href) ? "nav-current" : "hover:underline"
-          }
-        >
-          {item.label}
-        </Link>
-      ))}
-    </nav>
+    <header className="hero">
+      <div className="hero-brand">
+        <img src="/kanbons-logo.svg" alt="Kanbons" className="hero-logo" />
+        <span className="hero-name">Kanbons</span>
+      </div>
+      <nav>
+        {nav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={current(pathname, item.href) ? "nav-current" : undefined}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </header>
   );
 }

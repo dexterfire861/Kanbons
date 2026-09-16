@@ -284,72 +284,102 @@ def state_abbr(s: str | None) -> str:
     return STATE_ABBR.get(n, n)
 
 
-def apply_contact_id_cust(customers: list[dict], contact_rows: list[dict]) -> None:
-    """Contact sheet ID codes are newer than Customers.ID_Cust — overlay them."""
-    used_codes = {c["id_cust"] for c in customers if c.get("id_cust")}
-    seen_contact_codes: set[str] = set()
+def plant_token(name: str | None) -> str:
+    hit = re.search(r"\bP\d+\b", (name or "").upper())
+    return hit.group(0) if hit else ""
 
-    def find_customer(code: str, company: str, state: str, city: str | None) -> dict | None:
+
+def apply_contact_id_cust(customers: list[dict], contact_rows: list[dict]) -> None:
+    """Packing-slip Contact.Code2 wins over RML Customers.ID_Cust."""
+
+    def find_customer(
+        names_label: str, company: str, state: str, city: str | None
+    ) -> dict | None:
         st = state_abbr(state)
+        plant = plant_token(names_label)
+        label = norm(names_label)
+        if plant and "WOODHAVEN" in names_label.upper():
+            for c in customers:
+                if (
+                    plant_token(c.get("name")) == plant
+                    and "WOODHAVEN" in (c.get("name") or "").upper()
+                ):
+                    return c
         for c in customers:
-            if c.get("id_cust") and norm(c["id_cust"]) == norm(code):
-                return c
-        for c in customers:
-            if state_abbr(c.get("state")) != st:
+            if st and state_abbr(c.get("state")) != st:
                 continue
             if city and c.get("city") and norm(c["city"]) != norm(city):
                 continue
             cn = norm(c["name"]).replace("CORCICANA", "CORSICANA")
-            cc = norm(company).replace("CORCICANA", "CORSICANA")
+            cc = label.replace("CORCICANA", "CORSICANA")
+            co = norm(company).replace("CORCICANA", "CORSICANA")
             if cn == cc or cn in cc or cc in cn:
                 return c
-            co_first = cc.split()[0]
-            if st and cn == f"{co_first} {st}":
+            if co and (cn == co or cn in co or co in cn):
                 return c
-            if st and cn.endswith(f" {st}") and cn.startswith(co_first):
+            co_first = (co or cc).split()[0] if (co or cc) else ""
+            if st and co_first and cn == f"{co_first} {st}":
+                return c
+            if st and co_first and cn.endswith(f" {st}") and cn.startswith(co_first):
                 return c
         return None
 
     for row in contact_rows:
-        code = as_text(row.get(1))
-        company = as_text(row.get(2))
-        state = as_text(row.get(3))
-        city = as_text(row.get(6))
-        if not code or not company or code in seen_contact_codes:
+        names_label = as_text(row.get(1)) or ""
+        code = as_text(row.get(2))
+        company = as_text(row.get(3)) or names_label
+        state = as_text(row.get(4))
+        city = as_text(row.get(7))
+        if not code:
             continue
-        seen_contact_codes.add(code)
-        match = find_customer(code, company, state, city)
+        match = find_customer(names_label, company, state or "", city)
         if match is None:
             new_id = max(c["id"] for c in customers) + 1
             customers.append(
                 {
                     "id": new_id,
-                    "name": company,
-                    "address": as_text(row.get(5)),
-                    "city": as_text(row.get(6)),
+                    "name": names_label or company,
+                    "address": as_text(row.get(6)),
+                    "city": city,
                     "state": state,
-                    "zip_code": as_text(row.get(8)),
-                    "point_of_contact": as_text(row.get(4)),
+                    "zip_code": as_text(row.get(9)),
+                    "point_of_contact": as_text(row.get(5)),
                     "id_cust": code,
                     "email_contact": None,
-                    "company": company_of(company),
+                    "company": company_of(names_label or company),
                 }
             )
-            used_codes.add(code)
-            print(f"  added customer from Contact: {code} ({company})")
+            print(f"  added customer from Contact: {code} ({names_label or company})")
             continue
         old = match.get("id_cust")
         if old == code:
             continue
-        if code in used_codes and old != code:
-            # another row already owns this code; skip
-            print(f"  skip Contact code {code} (already used); left {old} on {match['name']}")
-            continue
-        if old:
-            used_codes.discard(old)
         match["id_cust"] = code
-        used_codes.add(code)
         print(f"  id_cust {old or '(none)'} -> {code}  ({match['name']})")
+
+
+def apply_woodhaven_code(customers: list[dict], contact_rows: list[dict]) -> None:
+    whfi = None
+    for row in contact_rows:
+        blob = " ".join(
+            part
+            for part in (as_text(row.get(1)), as_text(row.get(3)))
+            if part
+        )
+        code = as_text(row.get(2))
+        if code and "WOODHAVEN" in blob.upper():
+            whfi = code
+            break
+    if not whfi:
+        return
+    for customer in customers:
+        if customer.get("company") != "Woodhaven":
+            continue
+        old = customer.get("id_cust")
+        if old == whfi:
+            continue
+        customer["id_cust"] = whfi
+        print(f"  id_cust {old or '(none)'} -> {whfi}  ({customer['name']})")
 
 
 def match_customer(label: str | None, customers: list[dict], aliases: dict[str, int]) -> int | None:
@@ -544,7 +574,7 @@ def seed() -> None:
         for path in WORKBOOKS
     ]
     tmpls = [
-        load_workbook_sheets(path, ["Reconciliation", "Contact"], max_col=8)
+        load_workbook_sheets(path, ["Reconciliation", "Contact"], max_col=9)
         for path in TEMPLATES
     ]
 
@@ -557,6 +587,7 @@ def seed() -> None:
     apply_contact_id_cust(customers, contact_rows)
     for customer in customers:
         customer["company"] = company_of(customer.get("name"))
+    apply_woodhaven_code(customers, contact_rows)
 
     seen_sku: set[str] = set()
     products: list[dict] = []
@@ -602,6 +633,15 @@ def seed() -> None:
                    %(point_of_contact)s, %(id_cust)s, %(email_contact)s, %(company)s)
                 """,
                 customers,
+            )
+
+            cur.execute(
+                """
+                select setval(
+                  pg_get_serial_sequence('public.customers', 'id'),
+                  coalesce((select max(id) from public.customers), 1)
+                )
+                """
             )
 
             cur.executemany(

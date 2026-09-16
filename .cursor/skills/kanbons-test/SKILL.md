@@ -12,12 +12,16 @@ Read `EVALUATION.md` at the repo root first. If the suite is green but a criteri
 ## What to cover
 
 - Nav uses warehouse labels: Home, Customers, Products, Name matches, Stock, Incoming containers, Packing lists, Warehouse check.
+- Home shows the Kanbons navy bar with the logo. Health, Metrics, Prometheus, and Grafana are not in the nav.
 - Each of those routes (and Home) returns 200 with the page heading visible. Failed navigation fails the test.
-- `/product-mappings` loads with heading Name matches.
+- `/product-mappings` loads with heading Name matches, has Add name match, and a Find a name field.
+- Stock has Find a product and Change stock.
+- Incoming containers shows country tiles, not a dump of shipment lines. Open a container to see Yards / pieces.
+- `/changes` loads with heading Change history and is not in the nav.
 - Customers Add form has no `name="id"` field.
 - Packing list add does not ask for a generated number (`Assigned on save`).
 - Packing list lines and shipment lines appear only on `/packing-lists/[id]` and `/shipments/[id]`, not as a full dump on the list page. Always open a detail page (seed one header if the DB is empty).
-- Warehouse check (`/contador`) has no Save / submit for the computed view.
+- Warehouse check (`/contador`) has Find a product. No page-level Save for the comparison table. Adjust count lives in a dialog.
 
 ## How to run
 

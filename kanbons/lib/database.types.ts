@@ -34,6 +34,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      change_log: {
+        Row: {
+          created_at: string
+          field: string
+          from_value: string | null
+          id: number
+          row_id: number
+          table_name: string
+          to_value: string | null
+          who: string
+        }
+        Insert: {
+          created_at?: string
+          field: string
+          from_value?: string | null
+          id?: never
+          row_id: number
+          table_name: string
+          to_value?: string | null
+          who?: string
+        }
+        Update: {
+          created_at?: string
+          field?: string
+          from_value?: string | null
+          id?: never
+          row_id?: number
+          table_name?: string
+          to_value?: string | null
+          who?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -213,6 +246,7 @@ export type Database = {
           failure_reason: string | null
           gold_json: Json | null
           id: number
+          issues: Json | null
           packing_list_id: number | null
           resolved_json: Json | null
           source_filename: string
@@ -226,6 +260,7 @@ export type Database = {
           failure_reason?: string | null
           gold_json?: Json | null
           id?: never
+          issues?: Json | null
           packing_list_id?: number | null
           resolved_json?: Json | null
           source_filename: string
@@ -239,6 +274,7 @@ export type Database = {
           failure_reason?: string | null
           gold_json?: Json | null
           id?: never
+          issues?: Json | null
           packing_list_id?: number | null
           resolved_json?: Json | null
           source_filename?: string

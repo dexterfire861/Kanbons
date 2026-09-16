@@ -72,13 +72,22 @@ export function poReadResult(status: string, failureReason: string | null): PoRe
   return "Read";
 }
 
+function issueList(value: Json | null): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === "string" && item.trim() !== ""
+  );
+}
+
 function asView(row: PoIngestRun): PoReadView {
+  const issues = issueList(row.issues);
+  const reason = issues.join("; ") || row.failure_reason?.trim() || "";
   return {
     id: row.id,
     filename: row.source_filename,
     howLong: howLong(row.duration_ms),
-    result: poReadResult(row.status, row.failure_reason),
-    reason: row.failure_reason?.trim() || "",
+    result: poReadResult(row.status, reason || null),
+    reason,
   };
 }
 

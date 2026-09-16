@@ -35,12 +35,35 @@ def ocr_document(path: Path, converter: DocumentConverter | None = None):
     return converter.convert(str(path))
 
 
+def _table_rows(table) -> list[dict]:
+    df = table.export_to_dataframe()
+    names: list[str] = []
+    seen: dict[str, int] = {}
+    for col in df.columns:
+        raw = " ".join(str(col).split()) or "col"
+        n = seen.get(raw, 0)
+        seen[raw] = n + 1
+        names.append(raw if n == 0 else f"{raw}.{n}")
+    df = df.copy()
+    df.columns = names
+    rows = []
+    for record in df.to_dict(orient="records"):
+        rows.append(
+            {
+                str(key): ""
+                if value is None
+                else str(value).strip()
+                for key, value in record.items()
+            }
+        )
+    return rows
+
+
 def document_dump(result) -> dict:
     doc = result.document
     tables = []
     for index, table in enumerate(doc.tables, start=1):
-        grid = table.export_to_dataframe().to_dict(orient="records")
-        tables.append({"index": index, "rows": grid})
+        tables.append({"index": index, "rows": _table_rows(table)})
     return {
         "status": str(getattr(result, "status", "")),
         "pages": len(getattr(doc, "pages", {}) or []),

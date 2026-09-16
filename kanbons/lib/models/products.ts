@@ -26,14 +26,17 @@ export const listProductOptions = unstable_cache(
   { revalidate: 45 }
 );
 
-export type MatchProduct = Pick<Product, "id" | "num" | "product" | "pre_uni">;
+export type MatchProduct = Pick<
+  Product,
+  "id" | "num" | "product" | "pre_uni" | "unit_pack"
+>;
 
 export const listMatchProducts = unstable_cache(
   async (): Promise<MatchProduct[]> =>
     okList(
       await supabase
         .from("products")
-        .select("id, num, product, pre_uni")
+        .select("id, num, product, pre_uni, unit_pack")
         .order("num")
     ),
   ["match-products"],

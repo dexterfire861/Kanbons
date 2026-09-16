@@ -29,6 +29,6 @@ List each finding as **pass** or **violate**. Violations must include file:line 
 - Pages are thin: Server Actions call model functions; OCR can later import those same functions.
 - `po_ingest_runs` records each PO PDF read (duration, failed / unmatched / saved) and New packing slip lists Last reads.
 - Prometheus `/metrics` and Grafana are operator-only (not warehouse nav).
-- Contador is read-only; warehouse counts are edited on Stock.
+- Contador comparison table is read-only; warehouse counts are written through stock model functions (Stock or Warehouse check Adjust count).
 
 Score every `EVALUATION.md` criterion. Harness failures or any violate → **block**.

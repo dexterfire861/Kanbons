@@ -1,23 +1,15 @@
-import type { Address, PackingSlip } from "@/lib/models/packing_slip_match";
+import {
+  invoiceNumber,
+  listNumber,
+  type Address,
+  type PackingSlip,
+} from "@/lib/models/packing_slip_match";
 
 function fmtDate(value: string | null): string {
   if (!value) return "";
   const [year, month, day] = value.split("-");
   if (!year || !month || !day) return value;
   return `${Number(month)}/${Number(day)}/${year.slice(-2)}`;
-}
-
-function listNumber(slip: PackingSlip): string {
-  const code = slip.customerCode?.trim();
-  const po = slip.customerPo?.trim();
-  if (code && po) return `${code}-${po}`;
-  if (po) return po;
-  return String(slip.numPl);
-}
-
-function invoiceNumber(slip: PackingSlip): string {
-  const list = listNumber(slip);
-  return list ? `INV-${list}` : "";
 }
 
 function addressLines(address: Address, company?: string | null): string[] {

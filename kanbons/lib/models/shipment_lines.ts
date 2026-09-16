@@ -27,6 +27,18 @@ export async function listShipmentLines(
   );
 }
 
+export async function listShipmentLineSummaries(
+  shipmentIds: number[]
+): Promise<Pick<ShipmentLine, "shipment_id" | "sku" | "product">[]> {
+  if (shipmentIds.length === 0) return [];
+  return okList(
+    await supabase
+      .from("shipment_lines")
+      .select("shipment_id, sku, product")
+      .in("shipment_id", shipmentIds)
+  );
+}
+
 export async function createShipmentLine(
   input: ShipmentLineInsert
 ): Promise<ShipmentLine> {

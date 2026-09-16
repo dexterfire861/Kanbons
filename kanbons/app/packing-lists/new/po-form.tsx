@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   asWrittenOptions,
   catalogItemCode,
   isWoodhaven,
   packingSlipFromParts,
+  packsFor,
+  proposeNameMatches,
   resolveProductId,
   type Address,
   type MatchMapping,
   type MatchProduct,
+  type ProposedNameMatch,
 } from "@/lib/models/packing_slip_match";
 import { SlipView } from "../slip-view";
 import {
@@ -19,12 +22,14 @@ import {
 } from "../workflow-actions";
 import type { ParsedPoDraft } from "@/lib/models/purchase_orders";
 import type { PoCorrectionSnapshot } from "@/lib/models/po_ingest_runs";
+import { cachedProductOptions, Choice } from "@/app/ui/choice";
 
 type CustomerOption = {
   id: number;
   name: string;
   id_cust: string | null;
   company: string | null;
+  point_of_contact: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -57,15 +62,40 @@ const emptyAddress = (): Address => ({
   zip: "",
 });
 
+function personName(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? "";
+  if (!text || /^(no|n\/a|na|none|yes|xx|pending)$/i.test(text) || /^\d+$/.test(text)) {
+    return null;
+  }
+  return text;
+}
+
 function fromCustomer(customer: CustomerOption | undefined): Address {
   if (!customer) return emptyAddress();
   return {
-    name: customer.name,
+    name: personName(customer.point_of_contact) || customer.name,
     address: customer.address,
     city: customer.city,
     state: customer.state,
     zip: customer.zip_code,
   };
+}
+
+function uniqueCustomerHit(
+  customers: CustomerOption[],
+  needle: string
+): CustomerOption | null {
+  const want = needle.trim().toLowerCase();
+  if (!want) return null;
+  const byCode = customers.filter(
+    (item) => (item.id_cust ?? "").trim().toLowerCase() === want
+  );
+  if (byCode.length === 1) return byCode[0];
+  const byName = customers.filter(
+    (item) => item.name.trim().toLowerCase() === want
+  );
+  if (byName.length === 1) return byName[0];
+  return null;
 }
 
 function sameText(
@@ -89,7 +119,18 @@ function fillLine(
     unit: line.unit ? Number(line.unit) : null,
     productId: null,
   };
-  const productId = resolveProductId(asPo, products, mappings, woodhaven);
+  const resolved = resolveProductId(
+    { ...asPo, productId: null },
+    products,
+    mappings,
+    woodhaven
+  );
+  const productId = resolved ?? line.productId;
+  const product =
+    productId == null
+      ? null
+      : (products.find((item) => item.id === productId) ?? null);
+  const packs = packsFor(asPo.yardsPieces, product?.unit_pack);
   return {
     ...line,
     productId,
@@ -99,7 +140,21 @@ function fillLine(
       mappings,
       woodhaven
     ),
+    unit: line.unit.trim()
+      ? line.unit
+      : packs == null
+        ? ""
+        : String(packs),
   };
+}
+
+function productLabel(
+  products: MatchProduct[],
+  id: number | null
+): string | null {
+  if (id == null) return null;
+  const product = products.find((item) => item.id === id);
+  return product ? `${product.num} — ${product.product}` : null;
 }
 
 function FieldNote({ empty, changed }: { empty: boolean; changed: boolean }) {
@@ -115,6 +170,8 @@ function AddressFields({
   onChange,
   markEmpty,
   snapshot,
+  customers,
+  onPickCustomer,
 }: {
   prefix: string;
   title: string;
@@ -122,7 +179,11 @@ function AddressFields({
   onChange: (next: Address) => void;
   markEmpty?: boolean;
   snapshot?: Address | null;
+  customers: CustomerOption[];
+  onPickCustomer: (customer: CustomerOption) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const listId = `${prefix}-customers`;
   function set(key: keyof Address, value: string) {
     onChange({ ...values, [key]: value || null });
   }
@@ -140,9 +201,38 @@ function AddressFields({
   return (
     <fieldset className="dialog-fields border border-zinc-200 p-3">
       <legend className="font-semibold text-sm px-1">{title}</legend>
+      <label>
+        <span>Customer or code</span>
+        <input
+          value={query}
+          list={listId}
+          autoComplete="off"
+          onChange={(event) => {
+            const value = event.target.value;
+            setQuery(value);
+            const hit = uniqueCustomerHit(customers, value);
+            if (!hit) return;
+            onPickCustomer(hit);
+            setQuery(hit.name);
+          }}
+        />
+        <datalist id={listId}>
+          {customers.map((item) => (
+            <option key={`name-${item.id}`} value={item.name} />
+          ))}
+          {customers
+            .filter((item) => (item.id_cust ?? "").trim())
+            .map((item) => (
+              <option
+                key={`code-${item.id}`}
+                value={(item.id_cust ?? "").trim()}
+              />
+            ))}
+        </datalist>
+      </label>
       <label className={mark("name")}>
         <span>
-          Name
+          Contact
           {note("name")}
         </span>
         <input
@@ -227,6 +317,9 @@ export function PurchaseOrderForm({
   const [ocrSnapshot, setOcrSnapshot] = useState<PoCorrectionSnapshot | null>(
     null
   );
+  const [proposals, setProposals] = useState<ProposedNameMatch[]>([]);
+  const nameDialog = useRef<HTMLDialogElement>(null);
+  const pendingForm = useRef<FormData | null>(null);
   const router = useRouter();
 
   const customer = useMemo(
@@ -243,9 +336,12 @@ export function PurchaseOrderForm({
     [lines, mappings, products, woodhaven]
   );
   const nameChoices = useMemo(() => {
-    const extra = catalogLines.map((line) => line.asWritten).filter(Boolean);
+    const extra = [
+      ...catalogLines.map((line) => line.asWritten),
+      ...(ocrSnapshot?.lines.map((line) => line.asWritten) ?? []),
+    ].filter(Boolean);
     return [...new Set([...names, ...extra])];
-  }, [catalogLines, names]);
+  }, [catalogLines, names, ocrSnapshot]);
 
   const preview = useMemo(
     () =>
@@ -289,18 +385,60 @@ export function PurchaseOrderForm({
     setLines((current) =>
       current.map((item, i) => {
         if (i !== index) return item;
-        return fillLine(
-          {
-            ...item,
-            ...patch,
-            productId: null,
-          },
-          products,
-          mappings,
-          woodhaven
-        );
+        const next: Line = { ...item, ...patch };
+        if (
+          ("asWritten" in patch || "itemCode" in patch || "altCode" in patch) &&
+          !("productId" in patch)
+        ) {
+          next.productId = null;
+        }
+        if (!("unit" in patch) && !("productId" in patch)) {
+          next.unit = "";
+        }
+        return fillLine(next, products, mappings, woodhaven);
       })
     );
+  }
+
+  function fillConfirmForm(formData: FormData) {
+    const filled = catalogLines.filter((line) => line.asWritten || line.unit);
+    formData.set(
+      "lines",
+      JSON.stringify(
+        filled.map((line) => ({
+          asWritten: line.asWritten,
+          itemCode: line.itemCode || null,
+          altCode: line.altCode || null,
+          yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
+          unit: line.unit ? Number(line.unit) : null,
+          productId: line.productId,
+        }))
+      )
+    );
+    formData.set("ocr_markdown", ocrMarkdown);
+    formData.set("ocr_source", ocrSource);
+    formData.set("ocr_issues", ocrIssues.join("\n"));
+    if (ocrSnapshot) {
+      formData.set("ocr_snapshot", JSON.stringify(ocrSnapshot));
+    }
+    if (ingestRunId != null) {
+      formData.set("ingest_run_id", String(ingestRunId));
+    }
+  }
+
+  async function submitSlip(
+    formData: FormData,
+    matches: ProposedNameMatch[]
+  ) {
+    const keep = matches.filter(
+      (row) => row.client_name.trim() && row.product_id != null
+    );
+    if (keep.length > 0) {
+      formData.set("name_matches", JSON.stringify(keep));
+    } else {
+      formData.delete("name_matches");
+    }
+    await createAndConfirmFromPoAction(formData);
   }
 
   function applyParsed(parsed: ParsedPoDraft) {
@@ -319,13 +457,16 @@ export function PurchaseOrderForm({
       state: parsed.shipTo.state,
       zip: parsed.shipTo.zip,
     };
+    const nextBillTo: Address = {
+      name: parsed.billTo.name,
+      address: parsed.billTo.address,
+      city: parsed.billTo.city,
+      state: parsed.billTo.state,
+      zip: parsed.billTo.zip,
+    };
     const nextCustomerRow = customers.find(
       (item) => String(item.id) === nextCustomer
     );
-    const fromCustomerAddress = fromCustomer(nextCustomerRow);
-    const nextBillTo = fromCustomerAddress.name
-      ? fromCustomerAddress
-      : nextShipTo;
     const nextWoodhaven = isWoodhaven(
       nextCustomerRow?.company,
       nextCustomerRow?.name
@@ -399,35 +540,7 @@ export function PurchaseOrderForm({
   }
 
   return (
-    <form
-      className="grid gap-6 xl:grid-cols-2"
-      action={async (formData) => {
-        const filled = catalogLines.filter((line) => line.asWritten || line.unit);
-        formData.set(
-          "lines",
-          JSON.stringify(
-            filled.map((line) => ({
-              asWritten: line.asWritten,
-              itemCode: line.itemCode || null,
-              altCode: line.altCode || null,
-              yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
-              unit: line.unit ? Number(line.unit) : null,
-              productId: line.productId,
-            }))
-          )
-        );
-        formData.set("ocr_markdown", ocrMarkdown);
-        formData.set("ocr_source", ocrSource);
-        formData.set("ocr_issues", ocrIssues.join("\n"));
-        if (ocrSnapshot) {
-          formData.set("ocr_snapshot", JSON.stringify(ocrSnapshot));
-        }
-        if (ingestRunId != null) {
-          formData.set("ingest_run_id", String(ingestRunId));
-        }
-        await createAndConfirmFromPoAction(formData);
-      }}
-    >
+    <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-4">
         <div className="dialog-fields">
           <label>
@@ -438,6 +551,7 @@ export function PurchaseOrderForm({
               disabled={ocrBusy}
               onChange={(event) => {
                 const file = event.target.files?.[0];
+                event.target.value = "";
                 if (file) void readPdf(file);
               }}
             />
@@ -451,6 +565,39 @@ export function PurchaseOrderForm({
               Needs you: {ocrIssues.join("; ")}
             </p>
           ) : null}
+        </div>
+        <form
+          className="space-y-4"
+          action={async (formData) => {
+            fillConfirmForm(formData);
+            const proposed = proposeNameMatches({
+              lines: catalogLines
+                .filter((line) => line.asWritten || line.unit)
+                .map((line) => ({
+                  asWritten: line.asWritten,
+                  itemCode: line.itemCode || null,
+                  altCode: line.altCode || null,
+                  yardsPieces: line.yardsPieces
+                    ? Number(line.yardsPieces)
+                    : null,
+                  unit: line.unit ? Number(line.unit) : null,
+                  productId: line.productId,
+                })),
+              ocrLines: ocrSnapshot?.lines ?? null,
+              products,
+              mappings,
+              woodhaven,
+            });
+            if (proposed.length > 0) {
+              pendingForm.current = formData;
+              setProposals(proposed);
+              nameDialog.current?.showModal();
+              return;
+            }
+            await createAndConfirmFromPoAction(formData);
+          }}
+        >
+          <div className="dialog-fields">
           <label
             className={markClass(
               !customerId,
@@ -561,7 +708,7 @@ export function PurchaseOrderForm({
               onChange={(event) => setShipDate(event.target.value)}
             />
           </label>
-        </div>
+          </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <AddressFields
@@ -571,6 +718,21 @@ export function PurchaseOrderForm({
             onChange={setShipTo}
             markEmpty={ocrRan}
             snapshot={ocrSnapshot?.shipTo}
+            customers={customers}
+            onPickCustomer={(next) => {
+              setCustomerId(String(next.id));
+              setShipTo(fromCustomer(next));
+              setLines((current) =>
+                current.map((line) =>
+                  fillLine(
+                    line,
+                    products,
+                    mappings,
+                    isWoodhaven(next.company, next.name)
+                  )
+                )
+              );
+            }}
           />
           <AddressFields
             prefix="bill_to"
@@ -579,6 +741,10 @@ export function PurchaseOrderForm({
             onChange={setBillTo}
             markEmpty={ocrRan}
             snapshot={ocrSnapshot?.billTo}
+            customers={customers}
+            onPickCustomer={(next) => {
+              setBillTo(fromCustomer(next));
+            }}
           />
         </div>
 
@@ -600,6 +766,7 @@ export function PurchaseOrderForm({
           const qtyChanged = Boolean(
             snap && !sameText(line.yardsPieces, snap.yardsPieces)
           );
+          const unitEmpty = Boolean(line.yardsPieces) && !line.unit;
           const unitChanged = Boolean(snap && !sameText(line.unit, snap.unit));
           return (
             <div key={index} className="grid gap-2 md:grid-cols-2">
@@ -611,19 +778,22 @@ export function PurchaseOrderForm({
                   <FieldNote empty={nameEmpty} changed={nameChanged} />
                 </span>
                 {nameChoices.length > 0 ? (
-                  <select
-                    value={line.asWritten}
-                    onChange={(event) =>
-                      setLine(index, { asWritten: event.target.value })
-                    }
-                  >
-                    <option value="">Select name on PO</option>
-                    {nameChoices.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <input
+                      list="as-written-names"
+                      value={line.asWritten}
+                      onChange={(event) =>
+                        setLine(index, { asWritten: event.target.value })
+                      }
+                    />
+                    {index === 0 ? (
+                      <datalist id="as-written-names">
+                        {nameChoices.map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
+                    ) : null}
+                  </>
                 ) : (
                   <input
                     value={line.asWritten}
@@ -660,17 +830,32 @@ export function PurchaseOrderForm({
                 />
               </label>
               <label
-                className={`dialog-fields !m-0${unitChanged ? " needs-you" : ""}`}
+                className={`dialog-fields !m-0${unitEmpty || unitChanged ? " needs-you" : ""}`}
               >
                 <span>
-                  Units
-                  <FieldNote empty={false} changed={unitChanged} />
+                  Pack/Roll
+                  <FieldNote empty={unitEmpty} changed={unitChanged} />
                 </span>
                 <input
                   value={line.unit}
                   onChange={(event) => setLine(index, { unit: event.target.value })}
                 />
               </label>
+              {unmatched && line.asWritten ? (
+                <div className="dialog-fields !m-0 needs-you md:col-span-2">
+                  <span className="text-sm font-semibold">
+                    Our product
+                    <FieldNote empty={true} changed={false} />
+                  </span>
+                  <Choice
+                    value={line.productId}
+                    label={productLabel(products, line.productId)}
+                    emptyLabel="Select product"
+                    loadOptions={cachedProductOptions}
+                    onChange={(id) => setLine(index, { productId: id })}
+                  />
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -681,7 +866,7 @@ export function PurchaseOrderForm({
               .filter((line) => !line.matched)
               .map((line) => line.asWritten || "blank")
               .join(", ")}
-            . Add it on Name matches or change As written.
+            . Add it on Name matches, pick Our product, or change As written.
           </p>
         ) : null}
         <button
@@ -703,11 +888,119 @@ export function PurchaseOrderForm({
             Confirm packing slip
           </button>
         </div>
+        </form>
+        <dialog ref={nameDialog} className="box">
+          <h2 className="text-lg font-semibold">
+            Save these names so the next order finds them?
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Check the customer wording. Clear a name to skip that row.
+          </p>
+          <div className="dialog-fields">
+            {proposals.map((row, index) => (
+              <div key={`${row.product_id}-${index}`} className="grid gap-2">
+                <label>
+                  <span>Customer name</span>
+                  <input
+                    value={row.client_name}
+                    onChange={(event) =>
+                      setProposals((current) =>
+                        current.map((item, i) =>
+                          i === index
+                            ? { ...item, client_name: event.target.value }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Kanbons name</span>
+                  <input
+                    value={row.kanbons_name ?? ""}
+                    onChange={(event) =>
+                      setProposals((current) =>
+                        current.map((item, i) =>
+                          i === index
+                            ? { ...item, kanbons_name: event.target.value }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Item code</span>
+                  <input
+                    value={row.item_code ?? ""}
+                    onChange={(event) =>
+                      setProposals((current) =>
+                        current.map((item, i) =>
+                          i === index
+                            ? { ...item, item_code: event.target.value }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Product</span>
+                  <Choice
+                    value={row.product_id}
+                    label={productLabel(products, row.product_id)}
+                    emptyLabel="Select product"
+                    loadOptions={cachedProductOptions}
+                    onChange={(id) =>
+                      setProposals((current) =>
+                        current.map((item, i) =>
+                          i === index
+                            ? {
+                                ...item,
+                                product_id: id ?? item.product_id,
+                                kanbons_name:
+                                  products.find((product) => product.id === id)
+                                    ?.product ?? item.kanbons_name,
+                              }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+          <div className="dialog-actions">
+            <button
+              type="button"
+              className="border border-zinc-400 px-3 py-1 text-sm"
+              onClick={() => {
+                const formData = pendingForm.current;
+                nameDialog.current?.close();
+                if (formData) void submitSlip(formData, []);
+              }}
+            >
+              Confirm without saving
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                const formData = pendingForm.current;
+                nameDialog.current?.close();
+                if (formData) void submitSlip(formData, proposals);
+              }}
+            >
+              Save names and confirm
+            </button>
+          </div>
+        </dialog>
       </div>
       <div>
         <p className="mb-2 text-sm font-semibold">How it will look</p>
         <SlipView slip={preview} />
       </div>
-    </form>
+    </div>
   );
 }

@@ -20,7 +20,7 @@ function fieldsOf(row: Shipment) {
   };
 }
 
-function Row({ row }: { row: Shipment }) {
+function Row({ row, showLines }: { row: Shipment; showLines: boolean }) {
   const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(row),
     extra: { id: String(row.id) },
@@ -45,16 +45,24 @@ function Row({ row }: { row: Shipment }) {
       <td>
         <Cell type="date" value={values.departure_date} onChange={(value) => setField("departure_date", value)} onSave={save} />
       </td>
-      <td>
-        <Link href={`/shipments/${row.id}`} className="underline">
-          Lines
-        </Link>
-      </td>
+      {showLines ? (
+        <td>
+          <Link href={`/shipments/${row.id}`} className="underline">
+            Lines
+          </Link>
+        </td>
+      ) : null}
     </AutosaveRow>
   );
 }
 
-export function ShipmentSheet({ rows: initial }: { rows: Shipment[] }) {
+export function ShipmentSheet({
+  rows: initial,
+  showLines = true,
+}: {
+  rows: Shipment[];
+  showLines?: boolean;
+}) {
   const [rows, setRows] = useState(initial);
   useEffect(() => {
     setRows(initial);
@@ -70,13 +78,13 @@ export function ShipmentSheet({ rows: initial }: { rows: Shipment[] }) {
             <th>Invoice number</th>
             <th>Arrival</th>
             <th>Departure</th>
-            <th>Lines</th>
+            {showLines ? <th>Lines</th> : null}
             <th />
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <Row key={row.id} row={row} />
+            <Row key={row.id} row={row} showLines={showLines} />
           ))}
         </tbody>
       </table>

@@ -1,24 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Stock } from "@/lib/models/stock";
+import type { StockListRow } from "@/lib/models/stock";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
-import { cachedProductOptions, Choice } from "@/app/ui/choice";
-import { createStockAction, updateStockAction } from "./actions";
+import { updateStockAction } from "./actions";
 
 function str(value: string | number | null | undefined) {
   return value == null ? "" : String(value);
 }
 
-type ProductLabel = { num: string; product: string };
-
-function ExistingRow({
-  row,
-  product,
-}: {
-  row: Stock;
-  product?: ProductLabel;
-}) {
+function Row({ row }: { row: StockListRow }) {
   const { values, setField, save, state, error } = useAutosave({
     initial: {
       quantity: str(row.quantity),
@@ -28,13 +19,13 @@ function ExistingRow({
     action: updateStockAction,
   });
   const counted = row.contador_counted_at
-    ? new Date(row.contador_counted_at).toLocaleString()
+    ? row.contador_counted_at.replace("T", " ").slice(0, 16)
     : "";
 
   return (
     <AutosaveRow state={state} error={error} onSave={save}>
-      <td className="num">{product?.num ?? row.product_id}</td>
-      <td>{product?.product ?? ""}</td>
+      <td className="num">{row.num}</td>
+      <td>{row.product}</td>
       <td>
         <Cell value={values.quantity} onChange={(value) => setField("quantity", value)} onSave={save} />
       </td>
@@ -50,71 +41,11 @@ function ExistingRow({
   );
 }
 
-function NewRow({
-  used,
-  onCreated,
-}: {
-  used: Set<number>;
-  onCreated: (row: Stock) => void;
-}) {
-  const { values, setField, save, state, error } = useAutosave({
-    initial: { product_id: "", quantity: "", contador_physical: "" },
-    required: ["product_id"],
-    action: createStockAction,
-    onSaved: (result) => onCreated(result as Stock),
-  });
-  const productId = values.product_id ? Number(values.product_id) : null;
-
-  return (
-    <AutosaveRow state={state} error={error} onSave={save}>
-      <td colSpan={2}>
-        <Choice
-          value={productId}
-          emptyLabel="Product"
-          loadOptions={async () => {
-            const options = await cachedProductOptions();
-            return options.filter((option) => !used.has(option.id));
-          }}
-          onChange={(id) => {
-            setField("product_id", id == null ? "" : String(id));
-            void save();
-          }}
-        />
-      </td>
-      <td>
-        <Cell
-          placeholder="Book qty"
-          value={values.quantity}
-          onChange={(value) => setField("quantity", value)}
-          onSave={save}
-        />
-      </td>
-      <td>
-        <Cell
-          placeholder="Warehouse count"
-          value={values.contador_physical}
-          onChange={(value) => setField("contador_physical", value)}
-          onSave={save}
-        />
-      </td>
-      <td />
-    </AutosaveRow>
-  );
-}
-
-export function StockSheet({
-  rows: initial,
-  products,
-}: {
-  rows: Stock[];
-  products: Record<number, ProductLabel>;
-}) {
+export function StockSheet({ rows: initial }: { rows: StockListRow[] }) {
   const [rows, setRows] = useState(initial);
-  const [draft, setDraft] = useState(0);
   useEffect(() => {
     setRows(initial);
   }, [initial]);
-  const used = new Set(rows.map((row) => row.product_id));
 
   return (
     <div className="sheet">
@@ -130,20 +61,8 @@ export function StockSheet({
           </tr>
         </thead>
         <tbody>
-          <NewRow
-            key={draft}
-            used={used}
-            onCreated={(row) => {
-              setRows((current) => [row, ...current]);
-              setDraft((key) => key + 1);
-            }}
-          />
           {rows.map((row) => (
-            <ExistingRow
-              key={row.product_id}
-              row={row}
-              product={products[row.product_id]}
-            />
+            <Row key={row.product_id} row={row} />
           ))}
         </tbody>
       </table>

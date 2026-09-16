@@ -11,3 +11,4 @@ create index product_mappings_client_name_idx on public.product_mappings (client
 create index product_mappings_item_code_idx on public.product_mappings (item_code);
 create index product_mappings_product_id_idx on public.product_mappings (product_id);
 create index product_mappings_company_idx on public.product_mappings (company);
+create index product_mappings_kanbons_name_idx on public.product_mappings (kanbons_name);

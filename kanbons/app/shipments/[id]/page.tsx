@@ -4,6 +4,7 @@ import { getShipment } from "@/lib/models/shipments";
 import { listShipmentLines } from "@/lib/models/shipment_lines";
 import { PageIntro } from "@/app/ui/page-intro";
 import { ShipmentLineSheet } from "./sheet";
+import { ShipmentSheet } from "../sheet";
 
 export default async function ShipmentDetailPage({
   params,
@@ -37,6 +38,9 @@ export default async function ShipmentDetailPage({
         ]}
       />
 
+      <div className="mb-6">
+        <ShipmentSheet rows={[shipment]} showLines={false} />
+      </div>
       <ShipmentLineSheet shipmentId={shipment.id} lines={lines} />
     </main>
   );
