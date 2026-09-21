@@ -1,0 +1,10 @@
+groups:
+  - name: kanbons
+    rules:
+      - alert: KanbonsDatabaseDown
+        expr: kanbons_database_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Kanbons database is not answering

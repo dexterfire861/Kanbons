@@ -46,3 +46,8 @@ export async function updatePackingListLine(
       .single()
   );
 }
+
+export async function deletePackingListLine(id: number): Promise<void> {
+  const result = await supabase.from("packing_list_lines").delete().eq("id", id);
+  if (result.error) throw new Error(result.error.message);
+}

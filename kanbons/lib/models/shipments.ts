@@ -77,6 +77,17 @@ export async function listInTransitShipments(): Promise<InTransitShipment[]> {
   );
 }
 
+export async function nextShipmentNumber(): Promise<number> {
+  const rows = okList(
+    await supabase
+      .from("shipments")
+      .select("number")
+      .order("number", { ascending: false })
+      .limit(1)
+  );
+  return (rows[0]?.number ?? 0) + 1;
+}
+
 export async function getShipment(id: number): Promise<Shipment | null> {
   return okMaybe(
     await supabase.from("shipments").select("*").eq("id", id).maybeSingle()

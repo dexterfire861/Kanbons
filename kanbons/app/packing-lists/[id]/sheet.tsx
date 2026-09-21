@@ -9,6 +9,7 @@ import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
 import { cachedProductOptions, Choice } from "@/app/ui/choice";
 import {
   createPackingListLineAction,
+  deletePackingListLineAction,
   updatePackingListLineAction,
 } from "./actions";
 
@@ -142,9 +143,11 @@ function LineFields({
 function ExistingRow({
   line,
   packingListId,
+  onRemoved,
 }: {
   line: LineRow;
   packingListId: number;
+  onRemoved: (id: number) => void;
 }) {
   const { values, setField, save, state, error } = useAutosave({
     initial: fieldsOf(line),
@@ -152,14 +155,46 @@ function ExistingRow({
     required: ["product_id"],
     action: updatePackingListLineAction,
   });
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+
+  async function remove() {
+    if (line.id == null) return;
+    if (!window.confirm("Remove this line from the packing list?")) return;
+    setRemoving(true);
+    setRemoveError("");
+    try {
+      await deletePackingListLineAction(line.id);
+      onRemoved(line.id);
+    } catch (caught) {
+      setRemoveError(caught instanceof Error ? caught.message : "Couldn't remove");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   return (
-    <AutosaveRow state={state} error={error} onSave={save}>
+    <AutosaveRow
+      state={removeError ? "error" : state}
+      error={removeError || error}
+      onSave={save}
+    >
       <LineFields
         values={values}
         setField={setField}
         save={save}
         label={line.product}
       />
+      <td>
+        <button
+          type="button"
+          className="border border-zinc-400 px-2 py-0.5 text-sm"
+          disabled={removing}
+          onClick={() => void remove()}
+        >
+          Remove
+        </button>
+      </td>
     </AutosaveRow>
   );
 }
@@ -181,6 +216,7 @@ function NewRow({
   return (
     <AutosaveRow state={state} error={error} onSave={save}>
       <LineFields values={values} setField={setField} save={save} />
+      <td />
     </AutosaveRow>
   );
 }
@@ -208,7 +244,7 @@ export function PackingListLineSheet({
             <th>Units</th>
             <th>Price</th>
             <th>Total</th>
-            <th />
+            <th>Remove</th>
           </tr>
         </thead>
         <tbody>
@@ -225,6 +261,9 @@ export function PackingListLineSheet({
               key={line.id}
               line={line}
               packingListId={packingListId}
+              onRemoved={(id) =>
+                setLines((current) => current.filter((item) => item.id !== id))
+              }
             />
           ))}
         </tbody>

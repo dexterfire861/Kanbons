@@ -18,6 +18,7 @@ Read `EVALUATION.md` at the repo root first. If the suite is green but a criteri
 - Stock has Find a product and Change stock.
 - Incoming containers shows country tiles, not a dump of shipment lines. Open a container to see Yards / pieces.
 - `/changes` loads with heading Change history and is not in the nav.
+- `/metrics` includes `kanbons_database_up`, `kanbons_po_runs`, and `kanbons_po_extracted`. `/eval` returns JSON with `po.extracted`. Health, Metrics, Prometheus, and Grafana are not in the nav.
 - Customers Add form has no `name="id"` field.
 - Packing list add does not ask for a generated number (`Assigned on save`).
 - Packing list lines and shipment lines appear only on `/packing-lists/[id]` and `/shipments/[id]`, not as a full dump on the list page. Always open a detail page (seed one header if the DB is empty).

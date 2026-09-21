@@ -562,6 +562,73 @@ main > h1 {
   line-height: 1.4;
 }
 
+.bol-sheet {
+  max-width: 52rem;
+  background: #fff;
+  color: #18181b;
+  font-size: 0.8rem;
+}
+
+.bol-page {
+  border: 1px solid #18181b;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.bol-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  border-bottom: 1px solid #18181b;
+  margin-bottom: 0.5rem;
+}
+
+.bol-head h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bol-parties {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.bol-party {
+  border: 1px solid #18181b;
+  padding: 0.4rem 0.5rem;
+}
+
+.bol-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.bol-sheet h3 {
+  margin: 0.6rem 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bol-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bol-table th,
+.bol-table td {
+  border: 1px solid #18181b;
+  padding: 0.2rem 0.35rem;
+  text-align: left;
+}
+
+.bol-sign {
+  margin-top: 0.6rem;
+}
+
 @media print {
   nav,
   .hero {
@@ -573,6 +640,10 @@ main > h1 {
   }
 
   .slip-copy:not(:last-child) {
+    break-after: page;
+  }
+
+  .bol-page:not(:last-child) {
     break-after: page;
   }
 }

@@ -18,10 +18,12 @@ import {
 import { SlipView } from "../slip-view";
 import {
   createAndConfirmFromPoAction,
+  findSavedPoPdfAction,
   readPoPdfAction,
 } from "../workflow-actions";
 import type { ParsedPoDraft } from "@/lib/models/purchase_orders";
 import type { PoCorrectionSnapshot } from "@/lib/models/po_ingest_runs";
+import { lineFitsStock, type StockOnHand } from "@/lib/models/stock";
 import { cachedProductOptions, Choice } from "@/app/ui/choice";
 
 type CustomerOption = {
@@ -78,7 +80,18 @@ function fromCustomer(customer: CustomerOption | undefined): Address {
     city: customer.city,
     state: customer.state,
     zip: customer.zip_code,
+    company: customer.name,
   };
+}
+
+function addressBlank(address: Address) {
+  return (
+    !address.name?.trim() &&
+    !address.address?.trim() &&
+    !address.city?.trim() &&
+    !address.state?.trim() &&
+    !address.zip?.trim()
+  );
 }
 
 function uniqueCustomerHit(
@@ -171,6 +184,8 @@ function AddressFields({
   markEmpty,
   snapshot,
   customers,
+  query,
+  onQueryChange,
   onPickCustomer,
 }: {
   prefix: string;
@@ -180,9 +195,10 @@ function AddressFields({
   markEmpty?: boolean;
   snapshot?: Address | null;
   customers: CustomerOption[];
+  query: string;
+  onQueryChange: (value: string) => void;
   onPickCustomer: (customer: CustomerOption) => void;
 }) {
-  const [query, setQuery] = useState("");
   const listId = `${prefix}-customers`;
   function set(key: keyof Address, value: string) {
     onChange({ ...values, [key]: value || null });
@@ -209,11 +225,11 @@ function AddressFields({
           autoComplete="off"
           onChange={(event) => {
             const value = event.target.value;
-            setQuery(value);
+            onQueryChange(value);
             const hit = uniqueCustomerHit(customers, value);
             if (!hit) return;
             onPickCustomer(hit);
-            setQuery(hit.name);
+            onQueryChange(hit.name);
           }}
         />
         <datalist id={listId}>
@@ -294,11 +310,13 @@ export function PurchaseOrderForm({
   products,
   mappings,
   nextNumber,
+  stock,
 }: {
   customers: CustomerOption[];
   products: MatchProduct[];
   mappings: MatchMapping[];
   nextNumber: number;
+  stock: StockOnHand[];
 }) {
   const [customerId, setCustomerId] = useState("");
   const [customerPo, setCustomerPo] = useState("");
@@ -306,6 +324,8 @@ export function PurchaseOrderForm({
   const [shipDate, setShipDate] = useState("");
   const [shipTo, setShipTo] = useState<Address>(emptyAddress());
   const [billTo, setBillTo] = useState<Address>(emptyAddress());
+  const [shipQuery, setShipQuery] = useState("");
+  const [billQuery, setBillQuery] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrRan, setOcrRan] = useState(false);
@@ -314,12 +334,16 @@ export function PurchaseOrderForm({
   const [ocrMarkdown, setOcrMarkdown] = useState("");
   const [ocrSource, setOcrSource] = useState("");
   const [ingestRunId, setIngestRunId] = useState<number | null>(null);
+  const [ocrDocumentId, setOcrDocumentId] = useState<number | null>(null);
   const [ocrSnapshot, setOcrSnapshot] = useState<PoCorrectionSnapshot | null>(
     null
   );
   const [proposals, setProposals] = useState<ProposedNameMatch[]>([]);
   const nameDialog = useRef<HTMLDialogElement>(null);
+  const alreadyDialog = useRef<HTMLDialogElement>(null);
   const pendingForm = useRef<FormData | null>(null);
+  const pendingPdf = useRef<File | null>(null);
+  const savedDraft = useRef<ParsedPoDraft | null>(null);
   const router = useRouter();
 
   const customer = useMemo(
@@ -381,6 +405,22 @@ export function PurchaseOrderForm({
     ]
   );
 
+  function applyCustomer(next: CustomerOption | undefined, fillBill: boolean) {
+    const address = fromCustomer(next);
+    setCustomerId(next ? String(next.id) : "");
+    setShipTo(address);
+    setShipQuery(next?.name ?? "");
+    if (fillBill) {
+      setBillTo({ ...address });
+      setBillQuery(next?.name ?? "");
+    }
+    setLines((current) =>
+      current.map((line) =>
+        fillLine(line, products, mappings, isWoodhaven(next?.company, next?.name))
+      )
+    );
+  }
+
   function setLine(index: number, patch: Partial<Line>) {
     setLines((current) =>
       current.map((item, i) => {
@@ -423,6 +463,9 @@ export function PurchaseOrderForm({
     }
     if (ingestRunId != null) {
       formData.set("ingest_run_id", String(ingestRunId));
+    }
+    if (ocrDocumentId != null) {
+      formData.set("ocr_document_id", String(ocrDocumentId));
     }
   }
 
@@ -510,6 +553,7 @@ export function PurchaseOrderForm({
     setOcrMarkdown(parsed.ocrMarkdown ?? "");
     setOcrSource(parsed.sourceName ?? "");
     setIngestRunId(parsed.ingestRunId);
+    setOcrDocumentId(parsed.ocrDocumentId);
     setOcrRan(true);
   }
 
@@ -522,6 +566,7 @@ export function PurchaseOrderForm({
       applyParsed(await readPoPdfAction(data));
     } catch (error) {
       setIngestRunId(null);
+      setOcrDocumentId(null);
       setOcrSnapshot(null);
       setOcrError(
         error instanceof Error
@@ -532,6 +577,40 @@ export function PurchaseOrderForm({
       setOcrBusy(false);
       router.refresh();
     }
+  }
+
+  async function onPickPdf(file: File) {
+    pendingPdf.current = file;
+    savedDraft.current = null;
+    setOcrError(null);
+    try {
+      const saved = await findSavedPoPdfAction(file.name);
+      if (saved) {
+        savedDraft.current = saved;
+        alreadyDialog.current?.showModal();
+        return;
+      }
+    } catch (error) {
+      setOcrError(
+        error instanceof Error
+          ? error.message
+          : "Could not check if this purchase order was already read."
+      );
+      return;
+    }
+    await readPdf(file);
+  }
+
+  function keepLastRead() {
+    alreadyDialog.current?.close();
+    const saved = savedDraft.current;
+    if (saved) applyParsed(saved);
+  }
+
+  function readAgain() {
+    alreadyDialog.current?.close();
+    const file = pendingPdf.current;
+    if (file) void readPdf(file);
   }
 
   function markClass(empty: boolean, changed: boolean) {
@@ -552,7 +631,7 @@ export function PurchaseOrderForm({
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
-                if (file) void readPdf(file);
+                if (file) void onPickPdf(file);
               }}
             />
           </label>
@@ -618,22 +697,10 @@ export function PurchaseOrderForm({
               required
               value={customerId}
               onChange={(event) => {
-                const value = event.target.value;
-                setCustomerId(value);
-                const next = customers.find((item) => String(item.id) === value);
-                const address = fromCustomer(next);
-                setShipTo(address);
-                setBillTo(address);
-                setLines((current) =>
-                  current.map((line) =>
-                    fillLine(
-                      line,
-                      products,
-                      mappings,
-                      isWoodhaven(next?.company, next?.name)
-                    )
-                  )
+                const next = customers.find(
+                  (item) => String(item.id) === event.target.value
                 );
+                applyCustomer(next, addressBlank(billTo));
               }}
             >
               <option value="">Select customer</option>
@@ -719,20 +786,9 @@ export function PurchaseOrderForm({
             markEmpty={ocrRan}
             snapshot={ocrSnapshot?.shipTo}
             customers={customers}
-            onPickCustomer={(next) => {
-              setCustomerId(String(next.id));
-              setShipTo(fromCustomer(next));
-              setLines((current) =>
-                current.map((line) =>
-                  fillLine(
-                    line,
-                    products,
-                    mappings,
-                    isWoodhaven(next.company, next.name)
-                  )
-                )
-              );
-            }}
+            query={shipQuery}
+            onQueryChange={setShipQuery}
+            onPickCustomer={(next) => applyCustomer(next, false)}
           />
           <AddressFields
             prefix="bill_to"
@@ -742,8 +798,11 @@ export function PurchaseOrderForm({
             markEmpty={ocrRan}
             snapshot={ocrSnapshot?.billTo}
             customers={customers}
+            query={billQuery}
+            onQueryChange={setBillQuery}
             onPickCustomer={(next) => {
               setBillTo(fromCustomer(next));
+              setBillQuery(next.name);
             }}
           />
         </div>
@@ -765,6 +824,11 @@ export function PurchaseOrderForm({
           const qtyEmpty = ocrRan && !line.yardsPieces;
           const qtyChanged = Boolean(
             snap && !sameText(line.yardsPieces, snap.yardsPieces)
+          );
+          const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+          const stockFit = lineFitsStock(stock, line.productId, qty);
+          const shortStock = Boolean(
+            preview.lines[index]?.matched && !stockFit.ok
           );
           const unitEmpty = Boolean(line.yardsPieces) && !line.unit;
           const unitChanged = Boolean(snap && !sameText(line.unit, snap.unit));
@@ -818,11 +882,17 @@ export function PurchaseOrderForm({
                 />
               </label>
               <label
-                className={`dialog-fields !m-0${qtyEmpty || qtyChanged ? " needs-you" : ""}`}
+                className={`dialog-fields !m-0${qtyEmpty || qtyChanged || shortStock ? " needs-you" : ""}`}
               >
                 <span>
                   Yards / pieces
-                  <FieldNote empty={qtyEmpty} changed={qtyChanged} />
+                  <FieldNote empty={qtyEmpty || shortStock} changed={qtyChanged} />
+                  {shortStock ? (
+                    <span className="needs-you-note">
+                      {" "}
+                      Stock has {stockFit.have}
+                    </span>
+                  ) : null}
                 </span>
                 <input
                   value={line.yardsPieces}
@@ -856,6 +926,20 @@ export function PurchaseOrderForm({
                   />
                 </div>
               ) : null}
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  className="border border-zinc-400 px-2 py-0.5 text-sm"
+                  onClick={() =>
+                    setLines((current) => {
+                      const next = current.filter((_, i) => i !== index);
+                      return next.length > 0 ? next : [emptyLine()];
+                    })
+                  }
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           );
         })}
@@ -867,6 +951,17 @@ export function PurchaseOrderForm({
               .map((line) => line.asWritten || "blank")
               .join(", ")}
             . Add it on Name matches, pick Our product, or change As written.
+          </p>
+        ) : null}
+        {catalogLines.some((line, index) => {
+          const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+          return (
+            preview.lines[index]?.matched &&
+            !lineFitsStock(stock, line.productId, qty).ok
+          );
+        }) ? (
+          <p className="text-sm text-zinc-600">
+            Not enough stock. Reduce yards / pieces or remove the line.
           </p>
         ) : null}
         <button
@@ -882,13 +977,41 @@ export function PurchaseOrderForm({
             className="btn-primary"
             disabled={
               preview.lines.length === 0 ||
-              preview.lines.some((line) => !line.matched)
+              preview.lines.some((line) => !line.matched) ||
+              catalogLines.some((line, index) => {
+                const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+                return (
+                  preview.lines[index]?.matched &&
+                  !lineFitsStock(stock, line.productId, qty).ok
+                );
+              })
             }
           >
             Confirm packing slip
           </button>
         </div>
         </form>
+        <dialog ref={alreadyDialog} className="box">
+          <h2 className="text-lg font-semibold">
+            This purchase order was already read. Read it again?
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Keep the last one fills what we saved before. Read again reads the
+            PDF now. The earlier read stays on Last reads.
+          </p>
+          <div className="dialog-actions">
+            <button
+              type="button"
+              className="border border-zinc-400 px-3 py-1 text-sm"
+              onClick={keepLastRead}
+            >
+              Keep the last one
+            </button>
+            <button type="button" className="btn-primary" onClick={readAgain}>
+              Read again
+            </button>
+          </div>
+        </dialog>
         <dialog ref={nameDialog} className="box">
           <h2 className="text-lg font-semibold">
             Save these names so the next order finds them?

@@ -35,7 +35,7 @@ export function SlipView({
   copyLabel?: string;
 }) {
   const list = listNumber(slip);
-  const invoice = invoiceNumber(slip);
+  const invoice = invoiceNumber(slip, slip.split);
 
   return (
     <section className="slip-copy">
@@ -75,13 +75,13 @@ export function SlipView({
       <div className="slip-parties">
         <div className="slip-box">
           <p className="slip-box-label">Ship to:</p>
-          {addressLines(slip.shipTo, slip.customerName).map((line) => (
+          {addressLines(slip.shipTo, slip.shipTo.company ?? slip.customerName).map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
         <div className="slip-box">
           <p className="slip-box-label">Bill to:</p>
-          {addressLines(slip.billTo, slip.customerName).map((line) => (
+          {addressLines(slip.billTo, slip.billTo.company ?? slip.customerName).map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>

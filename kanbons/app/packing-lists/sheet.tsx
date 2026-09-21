@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PackingList } from "@/lib/models/packing_lists";
+import { packingListNumber } from "@/lib/models/packing_slip_match";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
 import { cachedCustomerOptions, Choice } from "@/app/ui/choice";
 import {
@@ -49,12 +50,14 @@ function ListFields({
   save,
   customerLabel,
   assignNumber,
+  listLabel,
 }: {
   values: Fields;
   setField: (name: keyof Fields, value: string) => void;
   save: () => void;
   customerLabel?: string | null;
   assignNumber?: boolean;
+  listLabel?: string;
 }) {
   const customerId = values.customer_id ? Number(values.customer_id) : null;
   return (
@@ -62,6 +65,8 @@ function ListFields({
       <td>
         {assignNumber ? (
           <input disabled placeholder="Assigned on save" />
+        ) : listLabel ? (
+          listLabel
         ) : (
           <Cell
             required
@@ -124,6 +129,7 @@ function ExistingRow({ row }: { row: PackingList }) {
         setField={setField}
         save={save}
         customerLabel={row.customer}
+        listLabel={row.split >= 2 ? packingListNumber(row) : undefined}
       />
       <td className="capitalize">{row.status}</td>
       <td>

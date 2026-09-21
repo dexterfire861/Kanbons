@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listOpenPackingLists } from "@/lib/models/packing_lists";
+import { packingListNumber } from "@/lib/models/packing_slip_match";
 import { listInTransitShipments } from "@/lib/models/shipments";
 
 const pages = [
@@ -9,6 +10,7 @@ const pages = [
   { href: "/stock", label: "Stock" },
   { href: "/shipments", label: "Incoming containers" },
   { href: "/packing-lists", label: "Packing lists" },
+  { href: "/bills-of-lading", label: "Bills of lading" },
   { href: "/contador", label: "Warehouse check" },
 ];
 
@@ -66,7 +68,7 @@ export default async function Home() {
                         href={`/packing-lists/${row.id}`}
                         className="underline"
                       >
-                        {row.num_pl}
+                        {packingListNumber(row)}
                       </Link>
                     </td>
                     <td>{dash(row.customer)}</td>

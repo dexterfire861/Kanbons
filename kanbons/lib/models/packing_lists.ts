@@ -1,6 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList, okMaybe } from "./result";
+import { packingListNumber } from "./packing_slip_match";
+
+export { packingListNumber };
 
 export type PackingList = Database["public"]["Tables"]["packing_lists"]["Row"];
 export type PackingListInsert = Omit<
@@ -12,7 +15,7 @@ export type PackingListUpdate =
 
 export type OpenPackingList = Pick<
   PackingList,
-  "id" | "num_pl" | "customer" | "customer_po" | "status" | "ship_date"
+  "id" | "num_pl" | "customer" | "customer_po" | "status" | "ship_date" | "split"
 >;
 
 export async function listPackingLists(
@@ -31,9 +34,19 @@ export async function listOpenPackingLists(): Promise<OpenPackingList[]> {
   return okList(
     await supabase
       .from("packing_lists")
-      .select("id, num_pl, customer, customer_po, status, ship_date")
+      .select("id, num_pl, customer, customer_po, status, ship_date, split")
       .in("status", ["draft", "confirmed"])
       .order("ship_date", { ascending: true, nullsFirst: true })
+  );
+}
+
+export async function listConfirmedPackingLists(): Promise<PackingList[]> {
+  return okList(
+    await supabase
+      .from("packing_lists")
+      .select("*")
+      .eq("status", "confirmed")
+      .order("num_pl", { ascending: false })
   );
 }
 

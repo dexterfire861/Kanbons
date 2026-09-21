@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPackingList } from "@/lib/models/packing_lists";
+import { getPackingList, packingListNumber } from "@/lib/models/packing_lists";
 import { listPackingListLines } from "@/lib/models/packing_list_lines";
 import { PageIntro } from "@/app/ui/page-intro";
 import { dispatchSlipAction } from "../workflow-actions";
@@ -28,7 +28,7 @@ export default async function PackingListDetailPage({
         </Link>
       </p>
       <PageIntro
-        title={`Packing list ${header.num_pl}`}
+        title={`Packing list ${packingListNumber(header)}`}
         what={`${header.customer ?? "No customer"} · PO ${header.customer_po ?? "—"} · ${header.status}. Each row is a product on this list. Total is yards/pieces × price.`}
         columns={[
           { name: "Product", meaning: "SKU from our catalog." },

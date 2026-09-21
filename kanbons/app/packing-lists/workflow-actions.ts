@@ -12,7 +12,9 @@ import {
   type PurchaseOrderLine,
 } from "@/lib/models/packing_slip";
 import { createProductMapping } from "@/lib/models/product_mappings";
+import { lineFitsStock, listStockOnHand } from "@/lib/models/stock";
 import {
+  loadSavedPoDraft,
   parsePurchaseOrderPdf,
   saveConfirmedPurchaseOrder,
   type ParsedPoDraft,
@@ -20,12 +22,14 @@ import {
 import {
   createPoIngestRun,
   diffPoFields,
+  diffSnapshots,
   diffsJson,
   getPoIngestRun,
   snapshotJson,
   updatePoIngestRun,
   type PoCorrectionSnapshot,
 } from "@/lib/models/po_ingest_runs";
+import { updateOcrDocument } from "@/lib/models/ocr_documents";
 
 function address(formData: FormData, prefix: string): Address {
   return {
@@ -98,6 +102,21 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
       `No name match for: ${unmatched.map((line) => line.asWritten).join(", ")}. Add it on Name matches or change As written.`
     );
   }
+  const onHand = await listStockOnHand();
+  const short = slip.lines.filter(
+    (line) => !lineFitsStock(onHand, line.productId, line.yardsPieces).ok
+  );
+  if (short.length > 0) {
+    const detail = short
+      .map((line) => {
+        const have = lineFitsStock(onHand, line.productId, line.yardsPieces).have;
+        return `${line.asWritten || "line"} (Stock has ${have})`;
+      })
+      .join(", ");
+    throw new Error(
+      `Not enough stock: ${detail}. Reduce yards / pieces or remove the line.`
+    );
+  }
   const row = await persistDraft(slip);
   await confirmPackingSlip(row.id);
   const issues = text(formData, "ocr_issues");
@@ -166,11 +185,29 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
   } catch (error) {
     console.error("po_ingest_runs saved", error);
   }
+  const ocrDocumentId = num(formData, "ocr_document_id");
+  if (ocrDocumentId != null) {
+    await updateOcrDocument(ocrDocumentId, {
+      status: "saved",
+      packing_list_id: row.id,
+      confirmed_json: snapshotJson(gold),
+      diff_json: diffSnapshots(
+        extracted ? snapshotJson(extracted) : null,
+        snapshotJson(gold)
+      ),
+    });
+  }
   revalidatePath("/packing-lists");
   revalidatePath("/packing-lists/new");
   revalidatePath(`/packing-lists/${row.id}`);
   revalidatePath("/product-mappings");
   redirect(`/packing-lists/${row.id}`);
+}
+
+export async function findSavedPoPdfAction(
+  filename: string
+): Promise<ParsedPoDraft | null> {
+  return loadSavedPoDraft(filename);
 }
 
 export async function readPoPdfAction(formData: FormData): Promise<ParsedPoDraft> {

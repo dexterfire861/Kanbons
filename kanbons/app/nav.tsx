@@ -11,6 +11,7 @@ const nav = [
   { href: "/stock", label: "Stock" },
   { href: "/shipments", label: "Incoming containers" },
   { href: "/packing-lists", label: "Packing lists" },
+  { href: "/bills-of-lading", label: "Bills of lading" },
   { href: "/contador", label: "Warehouse check" },
 ];
 

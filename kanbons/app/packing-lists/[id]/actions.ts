@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { num } from "@/lib/form";
 import {
   createPackingListLine,
+  deletePackingListLine,
   updatePackingListLine,
 } from "@/lib/models/packing_list_lines";
 import { getProduct } from "@/lib/models/products";
@@ -39,4 +40,10 @@ export async function updatePackingListLineAction(formData: FormData) {
   const row = await updatePackingListLine(id, await productFields(formData));
   revalidatePath("/contador");
   return row;
+}
+
+export async function deletePackingListLineAction(id: number) {
+  await deletePackingListLine(id);
+  revalidatePath("/packing-lists");
+  revalidatePath("/contador");
 }

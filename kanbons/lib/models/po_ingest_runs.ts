@@ -45,6 +45,7 @@ export async function createPoIngestRun(
   const row = ok(
     await supabase.from("po_ingest_runs").insert(input).select("*").single()
   );
+  if (row == null) throw new DatabaseError("No data returned");
   observePoRead(row.status, row.duration_ms);
   return row;
 }
@@ -91,6 +92,81 @@ function asView(row: PoIngestRun): PoReadView {
   };
 }
 
+export async function findSavedPoIngestRun(
+  filename: string
+): Promise<PoIngestRun | null> {
+  const name = filename.trim();
+  if (!name) return null;
+  return okMaybe(
+    await supabase
+      .from("po_ingest_runs")
+      .select("*")
+      .eq("source_filename", name)
+      .eq("status", "saved")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+}
+
+export function poSnapshotFromJson(
+  value: Json | null
+): PoCorrectionSnapshot | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const row = value as { [key: string]: Json | undefined };
+  const linesRaw = row.lines;
+  return {
+    customerId: asText(row.customerId),
+    customerPo: asText(row.customerPo),
+    date: asText(row.date),
+    shipDate: asText(row.shipDate),
+    shipTo: asAddress(row.shipTo),
+    billTo: asAddress(row.billTo),
+    lines: Array.isArray(linesRaw)
+      ? linesRaw.map((item) => asCorrectionLine(item))
+      : [],
+  };
+}
+
+function asAddress(value: Json | undefined): Address {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return { name: null, address: null, city: null, state: null, zip: null };
+  }
+  const row = value as { [key: string]: Json | undefined };
+  return {
+    name: asText(row.name) || null,
+    address: asText(row.address) || null,
+    city: asText(row.city) || null,
+    state: asText(row.state) || null,
+    zip: asText(row.zip) || null,
+  };
+}
+
+function asCorrectionLine(value: Json): PoCorrectionLine {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      asWritten: "",
+      itemCode: "",
+      altCode: "",
+      yardsPieces: "",
+      unit: "",
+      productId: null,
+    };
+  }
+  const row = value as { [key: string]: Json | undefined };
+  const productId = Number(row.productId);
+  return {
+    asWritten: asText(row.asWritten),
+    itemCode: asText(row.itemCode),
+    altCode: asText(row.altCode),
+    yardsPieces: asText(row.yardsPieces),
+    unit: asText(row.unit),
+    productId: Number.isFinite(productId) && productId > 0 ? productId : null,
+  };
+}
+
 export async function listRecentPoIngestRuns(limit = 10): Promise<PoReadView[]> {
   const result = await supabase
     .from("po_ingest_runs")
@@ -123,6 +199,7 @@ export async function updatePoIngestRun(
       .select("*")
       .single()
   );
+  if (row == null) throw new DatabaseError("No data returned");
   if (input.status === "saved") {
     observePoRead("saved", row.duration_ms);
   }
@@ -145,6 +222,15 @@ export function diffPoFields(
   const out: Record<string, FieldChange> = {};
   walk("", from as unknown as Json, gold as unknown as Json, out);
   return out;
+}
+
+export function diffSnapshots(
+  extracted: Json | null,
+  confirmed: Json
+): Json {
+  const out: Record<string, FieldChange> = {};
+  walk("", extracted ?? null, confirmed, out);
+  return diffsJson(out);
 }
 
 function emptySnapshot(): PoCorrectionSnapshot {

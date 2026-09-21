@@ -10,6 +10,8 @@ create table public.packing_lists (
   status text not null default 'draft'
     check (status in ('draft', 'confirmed', 'dispatched')),
   dispatched_at timestamptz,
+  split integer not null default 1,
+  parent_id bigint references public.packing_lists (id),
   ship_to_name text,
   ship_to_address text,
   ship_to_city text,
@@ -26,3 +28,4 @@ create index packing_lists_num_pl_idx on public.packing_lists (num_pl);
 create index packing_lists_customer_id_idx on public.packing_lists (customer_id);
 create index packing_lists_customer_po_idx on public.packing_lists (customer_po);
 create index packing_lists_status_idx on public.packing_lists (status);
+create index packing_lists_parent_id_idx on public.packing_lists (parent_id);

@@ -9,9 +9,12 @@ import { createPurchaseOrderLine } from "./purchase_order_lines";
 import type { Address } from "./packing_slip_match";
 import {
   createPoIngestRun,
+  findSavedPoIngestRun,
+  poSnapshotFromJson,
   snapshotJson,
   type PoCorrectionSnapshot,
 } from "./po_ingest_runs";
+import { createOcrDocument, uploadOcrPdf } from "./ocr_documents";
 import { ok, okMaybe } from "./result";
 
 export type PurchaseOrder = Database["public"]["Tables"]["purchase_orders"]["Row"];
@@ -42,6 +45,7 @@ export type ParsedPoDraft = {
   ocrMarkdown: string | null;
   sourceName: string | null;
   ingestRunId: number | null;
+  ocrDocumentId: number | null;
 };
 
 export type ConfirmedPoInput = {
@@ -168,6 +172,42 @@ export async function saveConfirmedPurchaseOrder(
 const WAREHOUSE_READ_ERROR =
   "Could not read this purchase order. Type it below or try again.";
 
+export async function loadSavedPoDraft(
+  filename: string
+): Promise<ParsedPoDraft | null> {
+  const run = await findSavedPoIngestRun(filename);
+  if (!run) return null;
+  const snapshot =
+    poSnapshotFromJson(run.gold_json) ?? poSnapshotFromJson(run.extracted_json);
+  if (!snapshot) return null;
+  const customerId = Number(snapshot.customerId);
+  return {
+    customerId:
+      Number.isFinite(customerId) && customerId > 0 ? customerId : null,
+    customerPo: snapshot.customerPo,
+    date: snapshot.date || null,
+    shipDate: snapshot.shipDate || null,
+    shipTo: snapshot.shipTo,
+    billTo: snapshot.billTo,
+    lines: snapshot.lines.map((line) => {
+      const qty = Number(line.yardsPieces);
+      return {
+        asWritten: line.asWritten,
+        itemCode: line.itemCode,
+        altCode: line.altCode || null,
+        yardsPieces:
+          line.yardsPieces.trim() && Number.isFinite(qty) ? qty : null,
+        productId: line.productId,
+      };
+    }),
+    issues: [],
+    ocrMarkdown: null,
+    sourceName: filename,
+    ingestRunId: null,
+    ocrDocumentId: null,
+  };
+}
+
 export async function parsePurchaseOrderPdf(
   bytes: Buffer,
   filename: string
@@ -220,7 +260,19 @@ export async function parsePurchaseOrderPdf(
       issues: recordedIssues,
       extracted: draftSnapshot(draft),
     });
-    return { ...draft, issues: recordedIssues, ingestRunId: run?.id ?? null };
+    const ocrDocumentId = await rememberOcrPdf({
+      kind: "customer_po",
+      filename,
+      bytes,
+      extracted: snapshotJson(draftSnapshot(draft)),
+      status: "unmatched",
+    });
+    return {
+      ...draft,
+      issues: recordedIssues,
+      ingestRunId: run?.id ?? null,
+      ocrDocumentId,
+    };
   } catch (error) {
     console.error("parsePurchaseOrderPdf", error);
     const detail = error instanceof Error ? error.message : String(error);
@@ -232,8 +284,131 @@ export async function parsePurchaseOrderPdf(
       issues: [detail],
       extracted: null,
     });
+    await rememberOcrPdf({
+      kind: "customer_po",
+      filename,
+      bytes,
+      extracted: null,
+      status: "failed",
+    });
     throw new Error(
       detail.startsWith("Could not read") ? detail : WAREHOUSE_READ_ERROR
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function rememberOcrPdf(input: {
+  kind: "customer_po" | "supplier" | "bill_of_lading";
+  filename: string;
+  bytes: Buffer;
+  extracted: Json | null;
+  status: "failed" | "unmatched" | "saved";
+}): Promise<number | null> {
+  const storagePath = await uploadOcrPdf(input.kind, input.filename, input.bytes);
+  const row = await createOcrDocument({
+    kind: input.kind,
+    filename: input.filename,
+    storage_path: storagePath,
+    extracted_json: input.extracted,
+    status: input.status,
+  });
+  return row?.id ?? null;
+}
+
+export type SupplierLine = {
+  description: string;
+  itemCode: string;
+  quantity: number | null;
+};
+
+export type SupplierDraft = {
+  invoiceNumber: string | null;
+  country: string | null;
+  departureDate: string | null;
+  arrivalDate: string | null;
+  lines: SupplierLine[];
+  issues: string[];
+  ocrDocumentId: number | null;
+};
+
+type SupplierJson = {
+  invoice_number?: string | null;
+  country?: string | null;
+  departure_date?: string | null;
+  arrival_date?: string | null;
+  lines?: Array<{
+    description?: string | null;
+    item_code?: string | null;
+    quantity?: number | null;
+  }>;
+  issues?: string[];
+};
+
+export async function parseSupplierPdf(
+  bytes: Buffer,
+  filename: string
+): Promise<SupplierDraft> {
+  const root = repoRoot();
+  const python = pythonBin(root);
+  const dir = await mkdtemp(join(tmpdir(), "kanbons-supplier-"));
+  const safeName = filename.replace(/[^A-Za-z0-9._-]+/g, "_") || "supplier.pdf";
+  const dest = join(dir, safeName);
+  try {
+    await writeFile(dest, bytes);
+    const raw = await runPython(
+      python,
+      [join(root, "PO-ingestion", "process.py"), "--supplier", dest],
+      root
+    );
+    const parsed = JSON.parse(raw) as SupplierJson;
+    const lines = (parsed.lines ?? [])
+      .map((line) => ({
+        description: (line.description || line.item_code || "").trim(),
+        itemCode: (line.item_code || "").trim(),
+        quantity:
+          line.quantity == null || !Number.isFinite(Number(line.quantity))
+            ? null
+            : Number(line.quantity),
+      }))
+      .filter((line) => line.description);
+    const issues = Array.isArray(parsed.issues) ? parsed.issues : [];
+    const extracted = {
+      invoiceNumber: parsed.invoice_number ?? null,
+      country: parsed.country ?? null,
+      departureDate: parsed.departure_date ?? null,
+      arrivalDate: parsed.arrival_date ?? null,
+      lines,
+      issues,
+    };
+    const ocrDocumentId = await rememberOcrPdf({
+      kind: "supplier",
+      filename,
+      bytes,
+      extracted: extracted as unknown as Json,
+      status: lines.length > 0 ? "unmatched" : "failed",
+    });
+    return {
+      invoiceNumber: extracted.invoiceNumber,
+      country: extracted.country,
+      departureDate: extracted.departureDate,
+      arrivalDate: extracted.arrivalDate,
+      lines,
+      issues,
+      ocrDocumentId,
+    };
+  } catch (error) {
+    console.error("parseSupplierPdf", error);
+    await rememberOcrPdf({
+      kind: "supplier",
+      filename,
+      bytes,
+      extracted: null,
+      status: "failed",
+    });
+    throw new Error(
+      "Could not read this supplier document. Try again or add the container by hand."
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -320,6 +495,7 @@ function fromReviewJson(raw: ReviewJson, filename: string): ParsedPoDraft {
     ocrMarkdown: raw.ocr_markdown ?? null,
     sourceName: filename,
     ingestRunId: null,
+    ocrDocumentId: null,
   };
 }
 

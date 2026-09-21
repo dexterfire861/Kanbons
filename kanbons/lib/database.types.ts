@@ -34,6 +34,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      bill_of_lading_lines: {
+        Row: {
+          bol_id: number
+          id: number
+          packing_list_id: number
+          product_id: number | null
+          yards_pieces: number | null
+        }
+        Insert: {
+          bol_id: number
+          id?: never
+          packing_list_id: number
+          product_id?: number | null
+          yards_pieces?: number | null
+        }
+        Update: {
+          bol_id?: number
+          id?: never
+          packing_list_id?: number
+          product_id?: number | null
+          yards_pieces?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_of_lading_lines_bol_id_fkey"
+            columns: ["bol_id"]
+            isOneToOne: false
+            referencedRelation: "bills_of_lading"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_of_lading_lines_packing_list_id_fkey"
+            columns: ["packing_list_id"]
+            isOneToOne: false
+            referencedRelation: "packing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_of_lading_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "contador"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "bill_of_lading_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bills_of_lading: {
+        Row: {
+          date: string | null
+          id: number
+          num_bol: number
+          status: string
+        }
+        Insert: {
+          date?: string | null
+          id?: never
+          num_bol: number
+          status?: string
+        }
+        Update: {
+          date?: string | null
+          id?: never
+          num_bol?: number
+          status?: string
+        }
+        Relationships: []
+      }
       change_log: {
         Row: {
           created_at: string
@@ -64,6 +138,78 @@ export type Database = {
           table_name?: string
           to_value?: string | null
           who?: string
+        }
+        Relationships: []
+      }
+      ocr_documents: {
+        Row: {
+          bol_id: number | null
+          confirmed_json: Json | null
+          created_at: string
+          diff_json: Json | null
+          extracted_json: Json | null
+          filename: string
+          id: number
+          kind: string
+          packing_list_id: number | null
+          shipment_id: number | null
+          status: string
+          storage_path: string | null
+        }
+        Insert: {
+          bol_id?: number | null
+          confirmed_json?: Json | null
+          created_at?: string
+          diff_json?: Json | null
+          extracted_json?: Json | null
+          filename: string
+          id?: never
+          kind: string
+          packing_list_id?: number | null
+          shipment_id?: number | null
+          status: string
+          storage_path?: string | null
+        }
+        Update: {
+          bol_id?: number | null
+          confirmed_json?: Json | null
+          created_at?: string
+          diff_json?: Json | null
+          extracted_json?: Json | null
+          filename?: string
+          id?: never
+          kind?: string
+          packing_list_id?: number | null
+          shipment_id?: number | null
+          status?: string
+          storage_path?: string | null
+        }
+        Relationships: []
+      }
+      ocr_proposals: {
+        Row: {
+          created_at: string
+          document_ids: Json
+          id: number
+          kind: string
+          status: string
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          document_ids: Json
+          id?: never
+          kind: string
+          status?: string
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          document_ids?: Json
+          id?: never
+          kind?: string
+          status?: string
+          summary?: string
         }
         Relationships: []
       }
@@ -175,12 +321,14 @@ export type Database = {
           dispatched_at: string | null
           id: number
           num_pl: number
+          parent_id: number | null
           ship_date: string | null
           ship_to_address: string | null
           ship_to_city: string | null
           ship_to_name: string | null
           ship_to_state: string | null
           ship_to_zip: string | null
+          split: number
           state: string | null
           status: string
         }
@@ -197,12 +345,14 @@ export type Database = {
           dispatched_at?: string | null
           id?: never
           num_pl: number
+          parent_id?: number | null
           ship_date?: string | null
           ship_to_address?: string | null
           ship_to_city?: string | null
           ship_to_name?: string | null
           ship_to_state?: string | null
           ship_to_zip?: string | null
+          split?: number
           state?: string | null
           status?: string
         }
@@ -219,12 +369,14 @@ export type Database = {
           dispatched_at?: string | null
           id?: never
           num_pl?: number
+          parent_id?: number | null
           ship_date?: string | null
           ship_to_address?: string | null
           ship_to_city?: string | null
           ship_to_name?: string | null
           ship_to_state?: string | null
           ship_to_zip?: string | null
+          split?: number
           state?: string | null
           status?: string
         }
@@ -234,6 +386,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_lists_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "packing_lists"
             referencedColumns: ["id"]
           },
         ]

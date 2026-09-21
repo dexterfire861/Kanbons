@@ -21,6 +21,7 @@ export type Address = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  company?: string | null;
 };
 
 export type PurchaseOrderLine = {
@@ -57,6 +58,8 @@ export type PackingSlipLine = {
 export type PackingSlip = {
   id?: number;
   numPl: number;
+  split: number;
+  parentId?: number | null;
   status: "draft" | "confirmed" | "dispatched";
   customerId: number;
   customerName: string;
@@ -80,16 +83,38 @@ function alreadyPrefixed(po: string, prefix: string): boolean {
 }
 
 export function listNumber(
-  slip: Pick<PackingSlip, "customerCode" | "customerName" | "customerPo" | "numPl">
+  slip: Pick<
+    PackingSlip,
+    "customerCode" | "customerName" | "customerPo" | "numPl" | "split"
+  >
 ): string {
   const part = customerPart(slip);
   const po = slip.customerPo?.trim() ?? "";
+  let base = String(slip.numPl);
   if (part && po) {
-    return alreadyPrefixed(po, part) ? po : `${part}-${po}`;
+    base = alreadyPrefixed(po, part) ? po : `${part}-${po}`;
+  } else if (po) {
+    base = po;
+  } else if (part) {
+    base = part;
   }
-  if (po) return po;
-  if (part) return part;
-  return String(slip.numPl);
+  if (slip.split >= 2) return `${base}-${slip.split}`;
+  return base;
+}
+
+export function packingListNumber(row: {
+  num_pl: number;
+  customer?: string | null;
+  customer_po?: string | null;
+  split?: number | null;
+}): string {
+  return listNumber({
+    customerCode: null,
+    customerName: row.customer ?? "",
+    customerPo: row.customer_po ?? "",
+    numPl: row.num_pl,
+    split: row.split ?? 1,
+  });
 }
 
 export function invoiceNumber(
@@ -358,6 +383,8 @@ export function catalogItemCode(
 
 export function packingSlipFromParts(input: {
   numPl: number;
+  split?: number;
+  parentId?: number | null;
   status?: PackingSlip["status"];
   customerId: number;
   customerName: string;
@@ -404,6 +431,8 @@ export function packingSlipFromParts(input: {
   }
   return {
     numPl: input.numPl,
+    split: input.split ?? 1,
+    parentId: input.parentId ?? null,
     status: input.status ?? "draft",
     customerId: input.customerId,
     customerName: input.customerName,

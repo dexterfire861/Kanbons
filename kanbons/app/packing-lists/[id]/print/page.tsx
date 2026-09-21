@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadPackingSlip } from "@/lib/models/packing_slip";
+import { listNumber } from "@/lib/models/packing_slip_match";
 import { PrintButton } from "../../print-button";
 import { SlipView } from "../../slip-view";
 
@@ -21,7 +22,7 @@ export default async function PrintPackingSlipPage({
     <main className="p-6 print:p-0">
       <div className="no-print mb-4 flex flex-wrap items-center gap-3">
         <Link href={`/packing-lists/${id}`} className="underline text-sm">
-          Packing list {slip.numPl}
+          Packing list {listNumber(slip)}
         </Link>
         <PrintButton />
         <p className="text-sm text-zinc-600">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadPackingSlip } from "@/lib/models/packing_slip";
+import { listNumber } from "@/lib/models/packing_slip_match";
 import { PageIntro } from "@/app/ui/page-intro";
 import { SlipView } from "../../slip-view";
 import { confirmSlipAction } from "../../workflow-actions";
@@ -22,7 +23,7 @@ export default async function ConfirmPackingSlipPage({
     <main className="p-6">
       <p className="mb-2 text-sm">
         <Link href={`/packing-lists/${id}`} className="underline">
-          Packing list {slip.numPl}
+          Packing list {listNumber(slip)}
         </Link>
       </p>
       <PageIntro

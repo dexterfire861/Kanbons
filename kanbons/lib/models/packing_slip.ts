@@ -1,4 +1,4 @@
-import { getCustomer } from "./customers";
+import { getCustomer, listCustomers, type Customer } from "./customers";
 import { listProductMappings } from "./product_mappings";
 import {
   createPackingList,
@@ -60,6 +60,8 @@ export async function packingSlipFromPurchaseOrder(
 export async function persistDraft(slip: PackingSlip): Promise<PackingList> {
   const header = await createPackingList({
     num_pl: slip.numPl,
+    split: slip.split ?? 1,
+    parent_id: slip.parentId ?? null,
     customer_id: slip.customerId,
     customer: slip.customerName,
     customer_po: slip.customerPo,
@@ -92,11 +94,34 @@ export async function persistDraft(slip: PackingSlip): Promise<PackingList> {
   return header;
 }
 
+function samePart(left: string | null | undefined, right: string | null | undefined) {
+  return (left ?? "").trim().toLowerCase() === (right ?? "").trim().toLowerCase();
+}
+
+function companyForAddress(
+  customers: Customer[],
+  address: Address,
+  fallback: string | null
+) {
+  if (!address.address?.trim()) return fallback;
+  const hits = customers.filter(
+    (customer) =>
+      samePart(customer.address, address.address) &&
+      samePart(customer.city, address.city) &&
+      samePart(customer.zip_code, address.zip)
+  );
+  if (hits.length === 1) return hits[0].name;
+  return fallback;
+}
+
 export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
   const header = await getPackingList(id);
   if (!header) return null;
   const lines = await listPackingListLines(id);
-  const products = await listProducts();
+  const [products, customers] = await Promise.all([
+    listProducts(),
+    listCustomers(),
+  ]);
   const customer =
     header.customer_id == null ? null : await getCustomer(header.customer_id);
   const byId = new Map(products.map((product) => [product.id, product]));
@@ -107,6 +132,8 @@ export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
   return {
     id: header.id,
     numPl: header.num_pl,
+    split: header.split ?? 1,
+    parentId: header.parent_id,
     status,
     customerId: header.customer_id ?? 0,
     customerName: header.customer ?? "",
@@ -120,6 +147,17 @@ export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
       city: header.ship_to_city,
       state: header.ship_to_state ?? header.state,
       zip: header.ship_to_zip,
+      company: companyForAddress(
+        customers,
+        {
+          name: header.ship_to_name,
+          address: header.ship_to_address,
+          city: header.ship_to_city,
+          state: header.ship_to_state ?? header.state,
+          zip: header.ship_to_zip,
+        },
+        header.customer
+      ),
     },
     billTo: {
       name: header.bill_to_name,
@@ -127,6 +165,17 @@ export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
       city: header.bill_to_city,
       state: header.bill_to_state,
       zip: header.bill_to_zip,
+      company: companyForAddress(
+        customers,
+        {
+          name: header.bill_to_name,
+          address: header.bill_to_address,
+          city: header.bill_to_city,
+          state: header.bill_to_state,
+          zip: header.bill_to_zip,
+        },
+        header.customer
+      ),
     },
     lines: lines.map((line) => {
       const product = line.product_id ? byId.get(line.product_id) : null;

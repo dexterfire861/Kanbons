@@ -963,6 +963,85 @@ def process(path: Path) -> PurchaseOrder:
     return po
 
 
+def _supplier_lines(dump: dict) -> list[dict]:
+    lines = []
+    for table in dump.get("tables") or []:
+        for row in table.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            description = ""
+            code = ""
+            qty = None
+            for key, value in row.items():
+                name = str(key).casefold()
+                text = str(value).strip()
+                if not text:
+                    continue
+                if any(word in name for word in ("desc", "product", "item", "fabric", "goods", "name")):
+                    description = description or text
+                elif any(word in name for word in ("code", "sku", "part")):
+                    code = code or text
+                elif any(word in name for word in ("qty", "quantity", "yard", "pcs", "piece")):
+                    qty = _as_number(text)
+            if not description and not code:
+                texts = [str(value).strip() for value in row.values() if str(value).strip()]
+                if texts:
+                    description = texts[0]
+                for value in row.values():
+                    number = _as_number(str(value))
+                    if number is not None:
+                        qty = number
+                        break
+            if description or code:
+                lines.append(
+                    {
+                        "description": description or code,
+                        "item_code": code,
+                        "quantity": qty,
+                    }
+                )
+    return lines
+
+
+def parse_supplier(dump: dict, source: Path) -> dict:
+    text = dump.get("text") or dump.get("markdown") or ""
+    invoice = (
+        _after_label(text, "Invoice No")
+        or _after_label(text, "Invoice #")
+        or _after_label(text, "Invoice")
+    )
+    country = _after_label(text, "Country") or _after_label(text, "Origin")
+    departure = _as_date(
+        _after_label(text, "Departure") or _after_label(text, "ETD") or ""
+    )
+    arrival = _as_date(_after_label(text, "Arrival") or _after_label(text, "ETA") or "")
+    lines = _supplier_lines(dump)
+    issues = []
+    if not lines:
+        issues.append("No product lines")
+    return {
+        "invoice_number": invoice,
+        "country": country,
+        "departure_date": departure,
+        "arrival_date": arrival,
+        "lines": lines,
+        "issues": issues,
+        "ocr_markdown": dump.get("markdown") or "",
+        "source_path": source.name,
+    }
+
+
+def supplier_review(path: Path) -> dict:
+    source = path.expanduser().resolve()
+    saved = sys.stdout
+    sys.stdout = sys.stderr
+    try:
+        dump = document_dump(ocr_document(source, make_converter()))
+        return parse_supplier(dump, source)
+    finally:
+        sys.stdout = saved
+
+
 def main(argv: list[str]) -> int:
     if len(argv) >= 2 and argv[1] == "--review":
         if len(argv) < 3:
@@ -978,10 +1057,24 @@ def main(argv: list[str]) -> int:
         sys.stdout.flush()
         # RapidOCR/ONNX aborts while tearing down threads on macOS (exit 134).
         os._exit(0)
+    if len(argv) >= 2 and argv[1] == "--supplier":
+        if len(argv) < 3:
+            sys.stderr.write(
+                "Usage: python PO-ingestion/process.py --supplier <pdf>\n"
+            )
+            return 2
+        source = Path(argv[2])
+        if not source.is_file():
+            sys.stderr.write(f"File not found: {source}\n")
+            return 2
+        sys.stdout.write(json.dumps(supplier_review(source)) + "\n")
+        sys.stdout.flush()
+        os._exit(0)
     if len(argv) < 2:
         sys.stderr.write(
             "Usage: python PO-ingestion/process.py <po-file>\n"
             "       python PO-ingestion/process.py --review <po-file>\n"
+            "       python PO-ingestion/process.py --supplier <pdf>\n"
         )
         return 2
     source = Path(argv[1])
