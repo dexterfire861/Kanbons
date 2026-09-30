@@ -1,9 +1,9 @@
 import { existsSync } from "fs";
-import { mkdtemp, rm, writeFile } from "fs/promises";
+import { mkdtemp, rename, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
-import { join, resolve } from "path";
+import { basename, join, resolve, sep } from "path";
 import { spawn } from "child_process";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database, Json } from "@/lib/database.types";
 import { createPurchaseOrderLine } from "./purchase_order_lines";
 import type { Address } from "./packing_slip_match";
@@ -12,6 +12,7 @@ import {
   findSavedPoIngestRun,
   poSnapshotFromJson,
   snapshotJson,
+  updatePoIngestRun,
   type PoCorrectionSnapshot,
 } from "./po_ingest_runs";
 import { createOcrDocument, uploadOcrPdf } from "./ocr_documents";
@@ -85,11 +86,13 @@ type ReviewJson = {
   }>;
   issues?: string[];
   ocr_markdown?: string | null;
+  eval_dir?: string | null;
 };
 
 export async function getPurchaseOrder(
   id: number
 ): Promise<PurchaseOrder | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("purchase_orders").select("*").eq("id", id).maybeSingle()
   );
@@ -98,6 +101,7 @@ export async function getPurchaseOrder(
 export async function createPurchaseOrder(
   input: PurchaseOrderInsert
 ): Promise<PurchaseOrder> {
+  const supabase = await createClient();
   return ok(
     await supabase.from("purchase_orders").insert(input).select("*").single()
   );
@@ -107,6 +111,7 @@ export async function updatePurchaseOrder(
   id: number,
   input: PurchaseOrderUpdate
 ): Promise<PurchaseOrder> {
+  const supabase = await createClient();
   return ok(
     await supabase
       .from("purchase_orders")
@@ -259,7 +264,18 @@ export async function parsePurchaseOrderPdf(
       failure_reason: recordedIssues.length > 0 ? recordedIssues.join("; ") : null,
       issues: recordedIssues,
       extracted: draftSnapshot(draft),
+      evalDir: parsed.eval_dir ?? null,
     });
+    if (run?.id && parsed.eval_dir) {
+      try {
+        const adopted = await adoptEvalDir(parsed.eval_dir, run.id);
+        if (adopted) {
+          await updatePoIngestRun(run.id, { source_path: adopted });
+        }
+      } catch (error) {
+        console.error("po eval folder", error);
+      }
+    }
     const ocrDocumentId = await rememberOcrPdf({
       kind: "customer_po",
       filename,
@@ -317,104 +333,6 @@ async function rememberOcrPdf(input: {
   return row?.id ?? null;
 }
 
-export type SupplierLine = {
-  description: string;
-  itemCode: string;
-  quantity: number | null;
-};
-
-export type SupplierDraft = {
-  invoiceNumber: string | null;
-  country: string | null;
-  departureDate: string | null;
-  arrivalDate: string | null;
-  lines: SupplierLine[];
-  issues: string[];
-  ocrDocumentId: number | null;
-};
-
-type SupplierJson = {
-  invoice_number?: string | null;
-  country?: string | null;
-  departure_date?: string | null;
-  arrival_date?: string | null;
-  lines?: Array<{
-    description?: string | null;
-    item_code?: string | null;
-    quantity?: number | null;
-  }>;
-  issues?: string[];
-};
-
-export async function parseSupplierPdf(
-  bytes: Buffer,
-  filename: string
-): Promise<SupplierDraft> {
-  const root = repoRoot();
-  const python = pythonBin(root);
-  const dir = await mkdtemp(join(tmpdir(), "kanbons-supplier-"));
-  const safeName = filename.replace(/[^A-Za-z0-9._-]+/g, "_") || "supplier.pdf";
-  const dest = join(dir, safeName);
-  try {
-    await writeFile(dest, bytes);
-    const raw = await runPython(
-      python,
-      [join(root, "PO-ingestion", "process.py"), "--supplier", dest],
-      root
-    );
-    const parsed = JSON.parse(raw) as SupplierJson;
-    const lines = (parsed.lines ?? [])
-      .map((line) => ({
-        description: (line.description || line.item_code || "").trim(),
-        itemCode: (line.item_code || "").trim(),
-        quantity:
-          line.quantity == null || !Number.isFinite(Number(line.quantity))
-            ? null
-            : Number(line.quantity),
-      }))
-      .filter((line) => line.description);
-    const issues = Array.isArray(parsed.issues) ? parsed.issues : [];
-    const extracted = {
-      invoiceNumber: parsed.invoice_number ?? null,
-      country: parsed.country ?? null,
-      departureDate: parsed.departure_date ?? null,
-      arrivalDate: parsed.arrival_date ?? null,
-      lines,
-      issues,
-    };
-    const ocrDocumentId = await rememberOcrPdf({
-      kind: "supplier",
-      filename,
-      bytes,
-      extracted: extracted as unknown as Json,
-      status: lines.length > 0 ? "unmatched" : "failed",
-    });
-    return {
-      invoiceNumber: extracted.invoiceNumber,
-      country: extracted.country,
-      departureDate: extracted.departureDate,
-      arrivalDate: extracted.arrivalDate,
-      lines,
-      issues,
-      ocrDocumentId,
-    };
-  } catch (error) {
-    console.error("parseSupplierPdf", error);
-    await rememberOcrPdf({
-      kind: "supplier",
-      filename,
-      bytes,
-      extracted: null,
-      status: "failed",
-    });
-    throw new Error(
-      "Could not read this supplier document. Try again or add the container by hand."
-    );
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
 async function recordPoRead(input: {
   filename: string;
   durationMs: number;
@@ -422,11 +340,12 @@ async function recordPoRead(input: {
   failure_reason: string | null;
   issues: string[];
   extracted: PoCorrectionSnapshot | null;
+  evalDir?: string | null;
 }): Promise<{ id: number } | null> {
   try {
     return await createPoIngestRun({
       source_filename: input.filename,
-      source_path: input.filename,
+      source_path: input.evalDir || input.filename,
       duration_ms: input.durationMs,
       status: input.status,
       failure_reason: input.failure_reason,
@@ -507,6 +426,35 @@ function repoRoot(): string {
     dir = resolve(dir, "..");
   }
   return resolve(process.cwd(), "..");
+}
+
+function insideEvalDir(sourcePath: string): string | null {
+  const base = resolve(repoRoot(), "data", "po_eval");
+  const dir = resolve(repoRoot(), sourcePath);
+  if (dir !== base && !dir.startsWith(base + sep)) return null;
+  return dir;
+}
+
+export async function adoptEvalDir(
+  evalDir: string,
+  runId: number
+): Promise<string | null> {
+  const current = insideEvalDir(evalDir);
+  if (!current) return null;
+  const stem = basename(current).replace(/^\d+-/, "") || "po";
+  const nextLeaf = `${runId}-${stem}`;
+  const next = join(resolve(repoRoot(), "data", "po_eval"), nextLeaf);
+  await rename(current, next);
+  return `data/po_eval/${nextLeaf}`;
+}
+
+export async function writeConfirmedEval(
+  sourcePath: string,
+  gold: PoCorrectionSnapshot
+): Promise<void> {
+  const dir = insideEvalDir(sourcePath);
+  if (!dir) return;
+  await writeFile(join(dir, "confirmed.json"), JSON.stringify(gold, null, 2) + "\n");
 }
 
 function pythonBin(root: string): string {

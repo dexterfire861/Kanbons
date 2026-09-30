@@ -34,6 +34,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string
+          name: string
+          role: string
+        }
+        Insert: {
+          id: string
+          name: string
+          role?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      agent_notes: {
+        Row: {
+          created_at: string
+          id: number
+          note: string
+          po_ingest_run_id: number | null
+          product_ids: Json
+          proposed_action: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          note: string
+          po_ingest_run_id?: number | null
+          product_ids?: Json
+          proposed_action: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          note?: string
+          po_ingest_run_id?: number | null
+          product_ids?: Json
+          proposed_action?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_notes_po_ingest_run_id_fkey"
+            columns: ["po_ingest_run_id"]
+            isOneToOne: false
+            referencedRelation: "po_ingest_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_of_lading_lines: {
         Row: {
           bol_id: number
@@ -255,6 +308,7 @@ export type Database = {
       packing_list_lines: {
         Row: {
           id: number
+          detected_yards: number | null
           packing_list_id: number
           pre_uni: number | null
           product: string | null
@@ -264,6 +318,7 @@ export type Database = {
           yards_pieces: number | null
         }
         Insert: {
+          detected_yards?: number | null
           id?: never
           packing_list_id: number
           pre_uni?: number | null
@@ -274,6 +329,7 @@ export type Database = {
           yards_pieces?: number | null
         }
         Update: {
+          detected_yards?: number | null
           id?: never
           packing_list_id?: number
           pre_uni?: number | null
@@ -795,6 +851,7 @@ export type Database = {
       }
       packing_list_line_totals: {
         Row: {
+          detected_yards: number | null
           id: number | null
           packing_list_id: number | null
           pre_uni: number | null
@@ -806,6 +863,7 @@ export type Database = {
           yards_pieces: number | null
         }
         Insert: {
+          detected_yards?: number | null
           id?: number | null
           packing_list_id?: number | null
           pre_uni?: number | null
@@ -817,6 +875,7 @@ export type Database = {
           yards_pieces?: number | null
         }
         Update: {
+          detected_yards?: number | null
           id?: number | null
           packing_list_id?: number | null
           pre_uni?: number | null
@@ -853,7 +912,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      database_ping: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

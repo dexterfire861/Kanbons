@@ -1,5 +1,7 @@
 "use client";
 
+import { FoldSheet } from "@/app/ui/fold-sheet";
+
 import { useEffect, useState } from "react";
 import type { Product } from "@/lib/models/products";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
@@ -103,7 +105,7 @@ export function ProductSheet({ rows: initial }: { rows: Product[] }) {
   }, [initial]);
 
   return (
-    <div className="sheet">
+    <FoldSheet>
       <table>
         <thead>
           <tr>
@@ -130,6 +132,6 @@ export function ProductSheet({ rows: initial }: { rows: Product[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </FoldSheet>
   );
 }

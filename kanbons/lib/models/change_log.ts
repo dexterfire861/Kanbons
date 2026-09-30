@@ -1,8 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
+import { currentPerson } from "@/lib/auth/session";
 import { ok, okList } from "./result";
-
-export const CHANGE_WHO = "admin";
 
 export type ChangeLog = Database["public"]["Tables"]["change_log"]["Row"];
 export type ChangeLogInsert = Omit<
@@ -51,7 +50,9 @@ export async function recordChange(input: {
   to_value: string | null;
   who?: string;
 }): Promise<ChangeLog | null> {
+  const supabase = await createClient();
   if (input.from_value === input.to_value) return null;
+  const person = input.who ? null : await currentPerson();
   return ok(
     await supabase
       .from("change_log")
@@ -61,7 +62,7 @@ export async function recordChange(input: {
         field: input.field,
         from_value: input.from_value,
         to_value: input.to_value,
-        who: input.who ?? CHANGE_WHO,
+        who: input.who ?? person?.name ?? "Unknown",
       })
       .select("*")
       .single()
@@ -91,7 +92,23 @@ export async function recordFieldChanges(input: {
   }
 }
 
+export async function listChangesSince(
+  since: string,
+  limit = 30
+): Promise<ChangeLog[]> {
+  const supabase = await createClient();
+  return okList(
+    await supabase
+      .from("change_log")
+      .select("*")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(limit)
+  );
+}
+
 export async function listChanges(limit = 200): Promise<ChangeLog[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("change_log")

@@ -72,6 +72,48 @@ export default async function PackingListDetailPage({
         ) : null}
       </div>
 
+      {lines.some(
+        (line) =>
+          line.detected_yards != null &&
+          line.yards_pieces != null &&
+          line.detected_yards > line.yards_pieces
+      ) ? (
+        <section className="mb-6 max-w-4xl">
+          <h2 className="text-lg font-semibold">Still to fulfill</h2>
+          <div className="sheet mt-2">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Detected</th>
+                  <th>On this slip</th>
+                  <th>Still owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.flatMap((line) => {
+                  if (
+                    line.detected_yards == null ||
+                    line.yards_pieces == null ||
+                    !(line.detected_yards > line.yards_pieces)
+                  ) {
+                    return [];
+                  }
+                  return [
+                    <tr key={line.id}>
+                      <td>{line.product || "Line"}</td>
+                      <td className="num">{line.detected_yards}</td>
+                      <td className="num">{line.yards_pieces}</td>
+                      <td className="num">{line.detected_yards - line.yards_pieces}</td>
+                    </tr>,
+                  ];
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <PackingListLineSheet packingListId={header.id} lines={lines} />
     </main>
   );

@@ -16,6 +16,7 @@ import { decrementStockByUnits } from "./stock";
 import { DatabaseError } from "./result";
 import {
   packingSlipFromParts,
+  type Address,
   type PackingSlip,
   type PurchaseOrderInput,
 } from "./packing_slip_match";
@@ -86,6 +87,7 @@ export async function persistDraft(slip: PackingSlip): Promise<PackingList> {
       product_id: line.productId,
       product: line.asWritten,
       yards_pieces: line.yardsPieces,
+      detected_yards: line.detectedYards,
       unit: line.unit,
       type_of_unit: null,
       pre_uni: line.preUni,
@@ -186,6 +188,7 @@ export async function loadPackingSlip(id: number): Promise<PackingSlip | null> {
         sku: product?.num ?? null,
         productName: product?.product ?? null,
         yardsPieces: line.yards_pieces,
+        detectedYards: line.detected_yards,
         unit: line.unit,
         preUni: line.pre_uni,
         matched: line.product_id != null,

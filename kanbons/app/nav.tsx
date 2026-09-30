@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOutAction } from "@/app/sign-in/actions";
 
 const nav = [
   { href: "/", label: "Home" },
@@ -20,7 +21,7 @@ function current(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppNav() {
+export function AppNav({ person }: { person: { name: string } | null }) {
   const pathname = usePathname();
 
   return (
@@ -29,17 +30,25 @@ export function AppNav() {
         <img src="/kanbons-logo.svg" alt="Kanbons" className="hero-logo" />
         <span className="hero-name">Kanbons</span>
       </div>
-      <nav>
-        {nav.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={current(pathname, item.href) ? "nav-current" : undefined}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      {person ? (
+        <nav>
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={current(pathname, item.href) ? "nav-current" : undefined}
+            >
+              {item.label}
+            </Link>
+          ))}
+          <span className="nav-person">{person.name}</span>
+          <form action={signOutAction}>
+            <button type="submit" className="nav-signout">
+              Sign out
+            </button>
+          </form>
+        </nav>
+      ) : null}
     </header>
   );
 }

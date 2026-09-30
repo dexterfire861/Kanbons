@@ -1,3 +1,4 @@
+import { FoldSheet } from "@/app/ui/fold-sheet";
 import {
   changeFieldLabel,
   changePageLabel,
@@ -17,7 +18,7 @@ export default async function ChangesPage() {
     <main className="p-6">
       <PageIntro
         title="Change history"
-        what="Every stock, warehouse count, name match, and container edit. Who is Admin until people sign in."
+        what="Every stock, warehouse count, name match, and container edit."
         columns={[
           { name: "When", meaning: "When the change was saved." },
           { name: "Who", meaning: "Who saved it." },
@@ -30,7 +31,7 @@ export default async function ChangesPage() {
       {rows.length === 0 ? (
         <p className="page-note">No changes recorded yet.</p>
       ) : (
-        <div className="sheet">
+        <FoldSheet>
           <table>
             <thead>
               <tr>
@@ -57,7 +58,7 @@ export default async function ChangesPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </FoldSheet>
       )}
     </main>
   );

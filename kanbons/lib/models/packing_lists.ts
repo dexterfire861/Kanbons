@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList, okMaybe } from "./result";
 import { packingListNumber } from "./packing_slip_match";
@@ -21,6 +21,7 @@ export type OpenPackingList = Pick<
 export async function listPackingLists(
   limit = 150
 ): Promise<PackingList[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("packing_lists")
@@ -31,6 +32,7 @@ export async function listPackingLists(
 }
 
 export async function listOpenPackingLists(): Promise<OpenPackingList[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("packing_lists")
@@ -41,6 +43,7 @@ export async function listOpenPackingLists(): Promise<OpenPackingList[]> {
 }
 
 export async function listConfirmedPackingLists(): Promise<PackingList[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("packing_lists")
@@ -51,6 +54,7 @@ export async function listConfirmedPackingLists(): Promise<PackingList[]> {
 }
 
 export async function getPackingList(id: number): Promise<PackingList | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("packing_lists").select("*").eq("id", id).maybeSingle()
   );
@@ -59,6 +63,7 @@ export async function getPackingList(id: number): Promise<PackingList | null> {
 export async function createPackingList(
   input: PackingListInsert
 ): Promise<PackingList> {
+  const supabase = await createClient();
   return ok(
     await supabase.from("packing_lists").insert(input).select("*").single()
   );
@@ -68,6 +73,7 @@ export async function updatePackingList(
   id: number,
   input: PackingListUpdate
 ): Promise<PackingList> {
+  const supabase = await createClient();
   return ok(
     await supabase
       .from("packing_lists")
@@ -79,6 +85,7 @@ export async function updatePackingList(
 }
 
 export async function nextPackingListNumber(): Promise<number> {
+  const supabase = await createClient();
   const rows = okList(
     await supabase
       .from("packing_lists")

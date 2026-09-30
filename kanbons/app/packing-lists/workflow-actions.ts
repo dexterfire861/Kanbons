@@ -17,6 +17,7 @@ import {
   loadSavedPoDraft,
   parsePurchaseOrderPdf,
   saveConfirmedPurchaseOrder,
+  writeConfirmedEval,
   type ParsedPoDraft,
 } from "@/lib/models/purchase_orders";
 import {
@@ -30,6 +31,8 @@ import {
   type PoCorrectionSnapshot,
 } from "@/lib/models/po_ingest_runs";
 import { updateOcrDocument } from "@/lib/models/ocr_documents";
+import { currentPerson } from "@/lib/auth/session";
+import { roleAllows } from "@/lib/auth/permissions";
 
 function address(formData: FormData, prefix: string): Address {
   return {
@@ -46,6 +49,7 @@ type PostedLine = {
   itemCode?: string | null;
   altCode?: string | null;
   yardsPieces?: number | null;
+  detectedYards?: number | null;
   unit?: number | null;
   productId?: number | null;
 };
@@ -79,6 +83,7 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
       itemCode: line.itemCode ?? null,
       altCode: line.altCode ?? null,
       yardsPieces: line.yardsPieces ?? null,
+      detectedYards: line.detectedYards ?? null,
       unit: line.unit ?? null,
       productId: line.productId ?? null,
     }));
@@ -106,7 +111,8 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
   const short = slip.lines.filter(
     (line) => !lineFitsStock(onHand, line.productId, line.yardsPieces).ok
   );
-  if (short.length > 0) {
+  const person = await currentPerson();
+  if (short.length > 0 && !roleAllows(person?.role, "stock.override")) {
     const detail = short
       .map((line) => {
         const have = lineFitsStock(onHand, line.productId, line.yardsPieces).have;
@@ -171,6 +177,9 @@ export async function createAndConfirmFromPoAction(formData: FormData) {
         gold_json: snapshotJson(gold),
         resolved_json: diffsJson(diffPoFields(extracted, gold)),
       });
+      if (run?.source_path) {
+        await writeConfirmedEval(run.source_path, gold);
+      }
     } else {
       await createPoIngestRun({
         source_filename: text(formData, "ocr_source") || "typed",

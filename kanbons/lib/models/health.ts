@@ -1,11 +1,10 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 
 export async function pingDatabase(): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
   try {
     const { error } = await supabase
-      .from("customers")
-      .select("id")
-      .limit(1)
+      .rpc("database_ping")
       .abortSignal(AbortSignal.timeout(3000));
     return { ok: !error };
   } catch {

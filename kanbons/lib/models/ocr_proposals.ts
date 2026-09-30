@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Json } from "@/lib/database.types";
 import { ok } from "./result";
 
@@ -9,6 +9,7 @@ export async function createOcrProposal(input: {
   summary: string;
   document_ids: number[];
 }): Promise<{ id: number } | null> {
+  const supabase = await createClient();
   try {
     return ok(
       await supabase

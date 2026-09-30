@@ -24,11 +24,31 @@ select,
 textarea,
 button {
   font: inherit;
+  border-radius: 0.5rem;
 }
 
 .sheet {
   width: 100%;
   overflow-x: auto;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.5rem;
+}
+
+.sheet tr.row-off td {
+  background: color-mix(in srgb, #b91c1c 10%, #fff);
+}
+
+.sheet tr.row-big td {
+  background: color-mix(in srgb, #b91c1c 24%, #fff);
+}
+
+.fold-rest {
+  margin-top: 0.45rem;
+  border: 1px solid #d4d4d8;
+  background: #fff;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
 
 .sheet table {
@@ -120,6 +140,7 @@ dialog.box {
   max-height: calc(100vh - 2rem);
   overflow: auto;
   border: 1px solid #d4d4d8;
+  border-radius: 0.5rem;
   padding: 1.25rem 1.5rem;
   background: #fff;
 }
@@ -219,6 +240,25 @@ dialog.wide {
   font-weight: 600;
 }
 
+.hero nav form {
+  display: inline-flex;
+}
+
+.nav-person {
+  color: #fafafa;
+  padding: 0.4rem 0.65rem;
+  margin-left: auto;
+}
+
+.nav-signout {
+  color: #fafafa;
+  background: transparent;
+  border: 0;
+  padding: 0.4rem 0.65rem;
+  min-height: 2.25rem;
+  cursor: pointer;
+}
+
 .find {
   position: sticky;
   top: 0;
@@ -263,6 +303,7 @@ dialog.wide {
 
 .tile {
   border: 1px solid #d4d4d8;
+  border-radius: 0.5rem;
   background: #fff;
   padding: 1rem 1.1rem;
 }
@@ -305,6 +346,7 @@ main > h1 {
 .btn-primary {
   display: inline-block;
   border: 1px solid var(--accent);
+  border-radius: 0.5rem;
   background: var(--accent);
   color: #fff;
   padding: 0.45rem 0.85rem;

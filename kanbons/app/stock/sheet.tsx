@@ -1,5 +1,7 @@
 "use client";
 
+import { FoldSheet } from "@/app/ui/fold-sheet";
+
 import { useEffect, useState } from "react";
 import type { StockListRow } from "@/lib/models/stock";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
@@ -48,7 +50,7 @@ export function StockSheet({ rows: initial }: { rows: StockListRow[] }) {
   }, [initial]);
 
   return (
-    <div className="sheet">
+    <FoldSheet>
       <table>
         <thead>
           <tr>
@@ -66,6 +68,6 @@ export function StockSheet({ rows: initial }: { rows: StockListRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </FoldSheet>
   );
 }

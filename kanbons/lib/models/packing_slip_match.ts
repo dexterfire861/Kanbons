@@ -29,6 +29,7 @@ export type PurchaseOrderLine = {
   itemCode: string | null;
   altCode?: string | null;
   yardsPieces: number | null;
+  detectedYards?: number | null;
   unit: number | null;
   productId: number | null;
 };
@@ -50,6 +51,7 @@ export type PackingSlipLine = {
   sku: string | null;
   productName: string | null;
   yardsPieces: number | null;
+  detectedYards: number | null;
   unit: number | null;
   preUni: number | null;
   matched: boolean;
@@ -198,6 +200,35 @@ function exactMappingId(
   return hit?.product_id ?? null;
 }
 
+function wordTokens(value: string | null | undefined): string[] {
+  return [...new Set((value ?? "").toUpperCase().match(/[A-Z0-9]+/g) ?? [])];
+}
+
+function knownTokens(products: MatchProduct[], mappings: MatchMapping[]): Set<string> {
+  const known = new Set<string>();
+  for (const product of products) {
+    for (const token of wordTokens(product.product)) known.add(token);
+    for (const token of wordTokens(product.num)) known.add(token);
+  }
+  for (const mapping of mappings) {
+    for (const token of wordTokens(mapping.client_name)) known.add(token);
+    for (const token of wordTokens(mapping.kanbons_name)) known.add(token);
+    for (const token of wordTokens(mapping.item_code)) known.add(token);
+  }
+  return known;
+}
+
+function withoutUnknownTokens(
+  raw: string,
+  known: Set<string>
+): string | null {
+  const parts = wordTokens(raw);
+  if (parts.length < 2) return null;
+  const kept = parts.filter((token) => known.has(token));
+  if (kept.length === 0 || kept.length === parts.length) return null;
+  return kept.join(" ");
+}
+
 function uniqueTokenHit(
   raw: string,
   products: MatchProduct[],
@@ -240,6 +271,11 @@ function fuzzyProductId(
   if (byName) return byName.id;
   const byTokens = uniqueTokenHit(raw ?? "", products, catalog);
   if (byTokens != null) return byTokens;
+  const stripped = withoutUnknownTokens(raw ?? "", knownTokens(products, catalog));
+  if (stripped) {
+    const byRemainder = uniqueTokenHit(stripped, products, catalog);
+    if (byRemainder != null) return byRemainder;
+  }
   if (needle.length < 4) return null;
   const close = catalog.filter((mapping) => {
     if (mapping.product_id == null) return false;
@@ -299,11 +335,17 @@ function hasExactWording(wording: string, catalog: MatchMapping[]): boolean {
 
 export function proposeNameMatches(input: {
   lines: PurchaseOrderLine[];
-  ocrLines?: { asWritten: string; itemCode?: string | null }[] | null;
+  ocrLines?: {
+    asWritten: string;
+    itemCode?: string | null;
+    productId?: number | null;
+  }[] | null;
   products: MatchProduct[];
   mappings: MatchMapping[];
   woodhaven?: boolean;
 }): ProposedNameMatch[] {
+  const read = input.ocrLines;
+  if (!read || read.length === 0) return [];
   const woodhaven = input.woodhaven ?? false;
   const catalog = mappingsForCatalog(input.mappings, woodhaven);
   const company = woodhaven ? "Woodhaven" : null;
@@ -311,29 +353,10 @@ export function proposeNameMatches(input: {
   const seen = new Set<string>();
   const out: ProposedNameMatch[] = [];
 
-  function add(
-    wording: string,
-    itemCode: string | null | undefined,
-    productId: number
-  ) {
-    const name = wording.trim();
-    if (!name) return;
-    if (hasExactWording(name, catalog)) return;
-    const key = `${norm(name)}|${productId}|${company ?? ""}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    const product = byId.get(productId);
-    out.push({
-      client_name: name,
-      kanbons_name: product?.product ?? null,
-      item_code: itemCode?.trim() || null,
-      product_id: productId,
-      company,
-    });
-  }
-
   for (let index = 0; index < input.lines.length; index++) {
     const line = input.lines[index];
+    const ocr = read[index];
+    if (!ocr || ocr.productId != null) continue;
     const productId = resolveProductId(
       line,
       input.products,
@@ -341,11 +364,22 @@ export function proposeNameMatches(input: {
       woodhaven
     );
     if (productId == null) continue;
-    add(line.asWritten, line.itemCode, productId);
-    const ocrName = input.ocrLines?.[index]?.asWritten ?? "";
-    if (ocrName.trim() && ocrName.trim() !== line.asWritten.trim()) {
-      add(ocrName, line.itemCode, productId);
-    }
+    const wording =
+      ocr.asWritten.trim() ||
+      (ocr.itemCode ?? "").trim() ||
+      line.asWritten.trim();
+    if (!wording || hasExactWording(wording, catalog)) continue;
+    const key = `${norm(wording)}|${productId}|${company ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const product = byId.get(productId);
+    out.push({
+      client_name: wording,
+      kanbons_name: product?.product ?? null,
+      item_code: (ocr.itemCode ?? line.itemCode)?.trim() || null,
+      product_id: productId,
+      company,
+    });
   }
   return out;
 }
@@ -424,6 +458,7 @@ export function packingSlipFromParts(input: {
       sku: product?.num ?? null,
       productName: product?.product ?? null,
       yardsPieces: line.yardsPieces,
+      detectedYards: line.detectedYards ?? null,
       unit: line.unit ?? packsFor(line.yardsPieces, product?.unit_pack),
       preUni: product?.pre_uni ?? null,
       matched: productId != null,

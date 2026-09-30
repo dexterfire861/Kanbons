@@ -1,5 +1,7 @@
 "use client";
 
+import { FoldSheet } from "@/app/ui/fold-sheet";
+
 import { useEffect, useState } from "react";
 import type { Customer } from "@/lib/models/customers";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
@@ -118,7 +120,7 @@ export function CustomerSheet({ rows: initial }: { rows: Customer[] }) {
           onCreated={(row) => setRows((current) => [row, ...current])}
         />
       </div>
-      <div className="sheet">
+      <FoldSheet>
         <table>
           <thead>
             <tr>
@@ -146,7 +148,7 @@ export function CustomerSheet({ rows: initial }: { rows: Customer[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </FoldSheet>
     </>
   );
 }

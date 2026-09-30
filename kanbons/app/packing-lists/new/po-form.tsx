@@ -23,7 +23,7 @@ import {
 } from "../workflow-actions";
 import type { ParsedPoDraft } from "@/lib/models/purchase_orders";
 import type { PoCorrectionSnapshot } from "@/lib/models/po_ingest_runs";
-import { lineFitsStock, type StockOnHand } from "@/lib/models/stock";
+import { lineFitsStock, type StockOnHand } from "@/lib/models/stock_fit";
 import { cachedProductOptions, Choice } from "@/app/ui/choice";
 
 type CustomerOption = {
@@ -109,6 +109,12 @@ function uniqueCustomerHit(
   );
   if (byName.length === 1) return byName[0];
   return null;
+}
+
+function detectedFromRead(value: string | null | undefined): number | null {
+  if (value == null || value.trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function sameText(
@@ -311,12 +317,14 @@ export function PurchaseOrderForm({
   mappings,
   nextNumber,
   stock,
+  canOverride = false,
 }: {
   customers: CustomerOption[];
   products: MatchProduct[];
   mappings: MatchMapping[];
   nextNumber: number;
   stock: StockOnHand[];
+  canOverride?: boolean;
 }) {
   const [customerId, setCustomerId] = useState("");
   const [customerPo, setCustomerPo] = useState("");
@@ -379,11 +387,12 @@ export function PurchaseOrderForm({
         shipDate: shipDate || null,
         shipTo,
         billTo,
-        lines: catalogLines.map((line) => ({
+        lines: catalogLines.map((line, index) => ({
           asWritten: line.asWritten,
           itemCode: line.itemCode || null,
           altCode: line.altCode || null,
           yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
+          detectedYards: detectedFromRead(ocrSnapshot?.lines[index]?.yardsPieces),
           unit: line.unit ? Number(line.unit) : null,
           productId: line.productId,
         })),
@@ -399,6 +408,7 @@ export function PurchaseOrderForm({
       date,
       mappings,
       nextNumber,
+      ocrSnapshot,
       products,
       shipDate,
       shipTo,
@@ -445,14 +455,18 @@ export function PurchaseOrderForm({
     formData.set(
       "lines",
       JSON.stringify(
-        filled.map((line) => ({
-          asWritten: line.asWritten,
-          itemCode: line.itemCode || null,
-          altCode: line.altCode || null,
-          yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
-          unit: line.unit ? Number(line.unit) : null,
-          productId: line.productId,
-        }))
+        filled.map((line) => {
+          const index = catalogLines.indexOf(line);
+          return {
+            asWritten: line.asWritten,
+            itemCode: line.itemCode || null,
+            altCode: line.altCode || null,
+            yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
+            detectedYards: detectedFromRead(ocrSnapshot?.lines[index]?.yardsPieces),
+            unit: line.unit ? Number(line.unit) : null,
+            productId: line.productId,
+          };
+        })
       )
     );
     formData.set("ocr_markdown", ocrMarkdown);
@@ -650,18 +664,14 @@ export function PurchaseOrderForm({
           action={async (formData) => {
             fillConfirmForm(formData);
             const proposed = proposeNameMatches({
-              lines: catalogLines
-                .filter((line) => line.asWritten || line.unit)
-                .map((line) => ({
-                  asWritten: line.asWritten,
-                  itemCode: line.itemCode || null,
-                  altCode: line.altCode || null,
-                  yardsPieces: line.yardsPieces
-                    ? Number(line.yardsPieces)
-                    : null,
-                  unit: line.unit ? Number(line.unit) : null,
-                  productId: line.productId,
-                })),
+              lines: catalogLines.map((line) => ({
+                asWritten: line.asWritten,
+                itemCode: line.itemCode || null,
+                altCode: line.altCode || null,
+                yardsPieces: line.yardsPieces ? Number(line.yardsPieces) : null,
+                unit: line.unit ? Number(line.unit) : null,
+                productId: line.productId,
+              })),
               ocrLines: ocrSnapshot?.lines ?? null,
               products,
               mappings,
@@ -887,13 +897,19 @@ export function PurchaseOrderForm({
                 <span>
                   Yards / pieces
                   <FieldNote empty={qtyEmpty || shortStock} changed={qtyChanged} />
-                  {shortStock ? (
-                    <span className="needs-you-note">
-                      {" "}
-                      Stock has {stockFit.have}
-                    </span>
-                  ) : null}
                 </span>
+                {detectedFromRead(snap?.yardsPieces) != null ? (
+                  <span className="text-sm font-normal text-zinc-600">
+                    Detected {detectedFromRead(snap?.yardsPieces)}
+                  </span>
+                ) : null}
+                {preview.lines[index]?.matched ? (
+                  <span
+                    className={`text-sm font-normal ${shortStock ? "needs-you-note" : "text-zinc-600"}`}
+                  >
+                    On hand {stockFit.have}
+                  </span>
+                ) : null}
                 <input
                   value={line.yardsPieces}
                   onChange={(event) => setLine(index, { yardsPieces: event.target.value })}
@@ -930,12 +946,19 @@ export function PurchaseOrderForm({
                 <button
                   type="button"
                   className="border border-zinc-400 px-2 py-0.5 text-sm"
-                  onClick={() =>
+                  onClick={() => {
                     setLines((current) => {
                       const next = current.filter((_, i) => i !== index);
                       return next.length > 0 ? next : [emptyLine()];
-                    })
-                  }
+                    });
+                    setOcrSnapshot((current) => {
+                      if (!current) return current;
+                      return {
+                        ...current,
+                        lines: current.lines.filter((_, i) => i !== index),
+                      };
+                    });
+                  }}
                 >
                   Remove
                 </button>
@@ -954,16 +977,67 @@ export function PurchaseOrderForm({
           </p>
         ) : null}
         {catalogLines.some((line, index) => {
-          const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
-          return (
-            preview.lines[index]?.matched &&
-            !lineFitsStock(stock, line.productId, qty).ok
-          );
+          const detected = detectedFromRead(ocrSnapshot?.lines[index]?.yardsPieces);
+          const ship = line.yardsPieces ? Number(line.yardsPieces) : null;
+          return detected != null && ship != null && detected > ship;
         }) ? (
-          <p className="text-sm text-zinc-600">
-            Not enough stock. Reduce yards / pieces or remove the line.
-          </p>
+          <section>
+            <p className="font-semibold text-sm">Still to fulfill</p>
+            <div className="sheet mt-2">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Detected</th>
+                    <th>On this slip</th>
+                    <th>Still owed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalogLines.flatMap((line, index) => {
+                    const detected = detectedFromRead(
+                      ocrSnapshot?.lines[index]?.yardsPieces
+                    );
+                    const ship = line.yardsPieces ? Number(line.yardsPieces) : null;
+                    if (detected == null || ship == null || !(detected > ship)) {
+                      return [];
+                    }
+                    return [
+                      <tr key={index}>
+                        <td>{line.asWritten || "Line"}</td>
+                        <td className="num">{detected}</td>
+                        <td className="num">{ship}</td>
+                        <td className="num">{detected - ship}</td>
+                      </tr>,
+                    ];
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
         ) : null}
+        {(() => {
+          const shortOfStock = catalogLines.some((line, index) => {
+            const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+            return (
+              preview.lines[index]?.matched &&
+              !lineFitsStock(stock, line.productId, qty).ok
+            );
+          });
+          if (!shortOfStock) return null;
+          if (canOverride) {
+            return (
+              <p className="text-sm text-zinc-600">
+                Stock is short. Confirm anyway if it will come later.
+              </p>
+            );
+          }
+          return (
+            <p className="text-sm text-zinc-600">
+              Not enough stock. An admin can confirm when stock comes later.
+            </p>
+          );
+        })()}
         <button
           type="button"
           className="border border-zinc-400 px-3 py-1 text-sm"
@@ -978,16 +1052,26 @@ export function PurchaseOrderForm({
             disabled={
               preview.lines.length === 0 ||
               preview.lines.some((line) => !line.matched) ||
-              catalogLines.some((line, index) => {
-                const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
-                return (
-                  preview.lines[index]?.matched &&
-                  !lineFitsStock(stock, line.productId, qty).ok
-                );
-              })
+              (!canOverride &&
+                catalogLines.some((line, index) => {
+                  const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+                  return (
+                    preview.lines[index]?.matched &&
+                    !lineFitsStock(stock, line.productId, qty).ok
+                  );
+                }))
             }
           >
-            Confirm packing slip
+            {canOverride &&
+            catalogLines.some((line, index) => {
+              const qty = line.yardsPieces ? Number(line.yardsPieces) : null;
+              return (
+                preview.lines[index]?.matched &&
+                !lineFitsStock(stock, line.productId, qty).ok
+              );
+            })
+              ? "Confirm anyway — stock comes later"
+              : "Confirm packing slip"}
           </button>
         </div>
         </form>
@@ -1014,16 +1098,20 @@ export function PurchaseOrderForm({
         </dialog>
         <dialog ref={nameDialog} className="box">
           <h2 className="text-lg font-semibold">
-            Save these names so the next order finds them?
+            Save this name for the next order?
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Check the customer wording. Clear a name to skip that row.
+            The read did not find a product. Clear a name to skip that row.
           </p>
           <div className="dialog-fields">
             {proposals.map((row, index) => (
               <div key={`${row.product_id}-${index}`} className="grid gap-2">
+                <p className="text-sm">
+                  You picked {row.kanbons_name ?? "this product"}. The name
+                  below is what the order said.
+                </p>
                 <label>
-                  <span>Customer name</span>
+                  <span>Name to save</span>
                   <input
                     value={row.client_name}
                     onChange={(event) =>
@@ -1031,60 +1119,6 @@ export function PurchaseOrderForm({
                         current.map((item, i) =>
                           i === index
                             ? { ...item, client_name: event.target.value }
-                            : item
-                        )
-                      )
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Kanbons name</span>
-                  <input
-                    value={row.kanbons_name ?? ""}
-                    onChange={(event) =>
-                      setProposals((current) =>
-                        current.map((item, i) =>
-                          i === index
-                            ? { ...item, kanbons_name: event.target.value }
-                            : item
-                        )
-                      )
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Item code</span>
-                  <input
-                    value={row.item_code ?? ""}
-                    onChange={(event) =>
-                      setProposals((current) =>
-                        current.map((item, i) =>
-                          i === index
-                            ? { ...item, item_code: event.target.value }
-                            : item
-                        )
-                      )
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Product</span>
-                  <Choice
-                    value={row.product_id}
-                    label={productLabel(products, row.product_id)}
-                    emptyLabel="Select product"
-                    loadOptions={cachedProductOptions}
-                    onChange={(id) =>
-                      setProposals((current) =>
-                        current.map((item, i) =>
-                          i === index
-                            ? {
-                                ...item,
-                                product_id: id ?? item.product_id,
-                                kanbons_name:
-                                  products.find((product) => product.id === id)
-                                    ?.product ?? item.kanbons_name,
-                              }
                             : item
                         )
                       )

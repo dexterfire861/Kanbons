@@ -1,8 +1,11 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { recordFieldChanges } from "./change_log";
 import { ok, okList, okMaybe } from "./result";
 import { searchPattern } from "./search";
+import type { StockOnHand } from "./stock_fit";
+
+export { lineFitsStock, stockOnHand, type StockOnHand } from "./stock_fit";
 
 export type Stock = Database["public"]["Tables"]["stock"]["Row"];
 export type StockInsert = Database["public"]["Tables"]["stock"]["Insert"];
@@ -27,6 +30,7 @@ async function logStock(
 }
 
 export async function listStock(): Promise<Stock[]> {
+  const supabase = await createClient();
   return okList(await supabase.from("stock").select("*").order("product_id"));
 }
 
@@ -34,6 +38,7 @@ export async function listStockPage(options?: {
   q?: string;
   limit?: number;
 }): Promise<StockListRow[]> {
+  const supabase = await createClient();
   const limit = options?.limit ?? PAGE_LIMIT;
   const q = options?.q?.trim();
   if (q) {
@@ -88,12 +93,11 @@ export async function listStockPage(options?: {
 }
 
 export async function getStock(productId: number): Promise<Stock | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("stock").select("*").eq("product_id", productId).maybeSingle()
   );
 }
-
-export type StockOnHand = { productId: number; quantity: number };
 
 export async function listStockOnHand(): Promise<StockOnHand[]> {
   const rows = await listStock();
@@ -101,26 +105,6 @@ export async function listStockOnHand(): Promise<StockOnHand[]> {
     productId: row.product_id,
     quantity: row.quantity ?? 0,
   }));
-}
-
-export function stockOnHand(
-  stock: StockOnHand[],
-  productId: number | null | undefined
-): number {
-  if (productId == null) return 0;
-  return stock.find((row) => row.productId === productId)?.quantity ?? 0;
-}
-
-export function lineFitsStock(
-  stock: StockOnHand[],
-  productId: number | null | undefined,
-  quantity: number | null | undefined
-): { ok: boolean; have: number } {
-  const have = stockOnHand(stock, productId);
-  if (quantity == null || !Number.isFinite(quantity) || quantity <= 0) {
-    return { ok: true, have };
-  }
-  return { ok: quantity <= have, have };
 }
 
 export async function decrementStockByUnits(
@@ -156,6 +140,7 @@ export async function addWarehouseCount(
 }
 
 export async function upsertStock(input: StockInsert): Promise<Stock> {
+  const supabase = await createClient();
   const previous = await getStock(input.product_id);
   const row: Stock = ok(
     await supabase.from("stock").upsert(input).select("*").single()
@@ -168,6 +153,7 @@ export async function updateStock(
   productId: number,
   input: StockUpdate
 ): Promise<Stock> {
+  const supabase = await createClient();
   const previous = await getStock(productId);
   const row: Stock = ok(
     await supabase

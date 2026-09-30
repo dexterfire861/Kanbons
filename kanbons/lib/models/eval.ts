@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Json } from "@/lib/database.types";
 import { okList } from "./result";
 
@@ -176,6 +176,7 @@ async function countTable(
   column: string,
   value: string
 ): Promise<number> {
+  const supabase = await createClient();
   const result = await supabase
     .from(table)
     .select("*", { count: "exact", head: true })
@@ -188,6 +189,7 @@ async function countViewEq(
   column: "book_mismatch" | "warehouse_mismatch",
   value: boolean
 ): Promise<number> {
+  const supabase = await createClient();
   const result = await supabase
     .from("contador")
     .select("*", { count: "exact", head: true })
@@ -200,6 +202,7 @@ async function countIsNull(
   table: "product_mappings",
   column: string
 ): Promise<number> {
+  const supabase = await createClient();
   const result = await supabase
     .from(table)
     .select("*", { count: "exact", head: true })
@@ -211,6 +214,7 @@ async function countIsNull(
 async function countAll(
   table: "product_mappings"
 ): Promise<number> {
+  const supabase = await createClient();
   const result = await supabase
     .from(table)
     .select("*", { count: "exact", head: true });
@@ -219,6 +223,7 @@ async function countAll(
 }
 
 export async function getEvalSnapshot(): Promise<EvalSnapshot> {
+  const supabase = await createClient();
   const [
     failed,
     unmatched,

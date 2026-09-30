@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { recordFieldChanges } from "./change_log";
 import { ok, okList, okMaybe } from "./result";
@@ -55,6 +55,7 @@ async function logShipment(before: Shipment | null, after: Shipment): Promise<vo
 }
 
 export async function listShipments(limit = 150): Promise<Shipment[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("shipments")
@@ -65,6 +66,7 @@ export async function listShipments(limit = 150): Promise<Shipment[]> {
 }
 
 export async function listInTransitShipments(): Promise<InTransitShipment[]> {
+  const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
   return okList(
     await supabase
@@ -78,6 +80,7 @@ export async function listInTransitShipments(): Promise<InTransitShipment[]> {
 }
 
 export async function nextShipmentNumber(): Promise<number> {
+  const supabase = await createClient();
   const rows = okList(
     await supabase
       .from("shipments")
@@ -89,6 +92,7 @@ export async function nextShipmentNumber(): Promise<number> {
 }
 
 export async function getShipment(id: number): Promise<Shipment | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("shipments").select("*").eq("id", id).maybeSingle()
   );
@@ -146,6 +150,7 @@ export async function listShipmentCountryTiles(): Promise<CountryTile[]> {
 }
 
 export async function createShipment(input: ShipmentInsert): Promise<Shipment> {
+  const supabase = await createClient();
   const row: Shipment = ok(
     await supabase.from("shipments").insert(input).select("*").single()
   );
@@ -157,6 +162,7 @@ export async function updateShipment(
   id: number,
   input: ShipmentUpdate
 ): Promise<Shipment> {
+  const supabase = await createClient();
   const previous = await getShipment(id);
   const row: Shipment = ok(
     await supabase.from("shipments").update(input).eq("id", id).select("*").single()

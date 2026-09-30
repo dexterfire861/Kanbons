@@ -1,3 +1,4 @@
+import { FoldSheet } from "@/app/ui/fold-sheet";
 import Link from "next/link";
 import { listBillsOfLading } from "@/lib/models/bills_of_lading";
 import { PageIntro } from "@/app/ui/page-intro";
@@ -32,7 +33,7 @@ export default async function BillsOfLadingPage() {
       {rows.length === 0 ? (
         <p className="page-note">No bills of lading yet.</p>
       ) : (
-        <div className="sheet">
+        <FoldSheet>
           <table>
             <thead>
               <tr>
@@ -60,7 +61,7 @@ export default async function BillsOfLadingPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </FoldSheet>
       )}
     </main>
   );

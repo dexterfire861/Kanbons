@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database, Json } from "@/lib/database.types";
-import { DatabaseError, ok, okMaybe } from "./result";
+import { DatabaseError, ok, okList, okMaybe } from "./result";
 import { observePoRead } from "@/lib/metrics";
 import type { Address } from "./packing_slip_match";
 
@@ -34,6 +34,7 @@ export type PoCorrectionSnapshot = {
 export type FieldChange = { from: Json; to: Json };
 
 export async function getPoIngestRun(id: number): Promise<PoIngestRun | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("po_ingest_runs").select("*").eq("id", id).maybeSingle()
   );
@@ -42,10 +43,10 @@ export async function getPoIngestRun(id: number): Promise<PoIngestRun | null> {
 export async function createPoIngestRun(
   input: PoIngestRunInsert
 ): Promise<PoIngestRun> {
+  const supabase = await createClient();
   const row = ok(
     await supabase.from("po_ingest_runs").insert(input).select("*").single()
   );
-  if (row == null) throw new DatabaseError("No data returned");
   observePoRead(row.status, row.duration_ms);
   return row;
 }
@@ -95,6 +96,7 @@ function asView(row: PoIngestRun): PoReadView {
 export async function findSavedPoIngestRun(
   filename: string
 ): Promise<PoIngestRun | null> {
+  const supabase = await createClient();
   const name = filename.trim();
   if (!name) return null;
   return okMaybe(
@@ -167,7 +169,23 @@ function asCorrectionLine(value: Json): PoCorrectionLine {
   };
 }
 
+export async function listPoIngestRunsSince(
+  since: string,
+  limit = 15
+): Promise<PoIngestRun[]> {
+  const supabase = await createClient();
+  return okList(
+    await supabase
+      .from("po_ingest_runs")
+      .select("*")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(limit)
+  );
+}
+
 export async function listRecentPoIngestRuns(limit = 10): Promise<PoReadView[]> {
+  const supabase = await createClient();
   const result = await supabase
     .from("po_ingest_runs")
     .select("*")
@@ -191,6 +209,7 @@ export async function updatePoIngestRun(
   id: number,
   input: PoIngestRunUpdate
 ): Promise<PoIngestRun> {
+  const supabase = await createClient();
   const row = ok(
     await supabase
       .from("po_ingest_runs")

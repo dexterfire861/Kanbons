@@ -161,6 +161,46 @@ export function SlipView({
         </table>
       </div>
 
+      {slip.lines.some(
+        (line) =>
+          line.detectedYards != null &&
+          line.yardsPieces != null &&
+          line.detectedYards > line.yardsPieces
+      ) ? (
+        <section className="slip-owed">
+          <p className="slip-box-label">Still to fulfill</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Detected</th>
+                <th>On this slip</th>
+                <th>Still owed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slip.lines.flatMap((line, index) => {
+                if (
+                  line.detectedYards == null ||
+                  line.yardsPieces == null ||
+                  !(line.detectedYards > line.yardsPieces)
+                ) {
+                  return [];
+                }
+                return [
+                  <tr key={index}>
+                    <td>{line.asWritten || "Line"}</td>
+                    <td>{line.detectedYards}</td>
+                    <td>{line.yardsPieces}</td>
+                    <td>{line.detectedYards - line.yardsPieces}</td>
+                  </tr>,
+                ];
+              })}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
       <table className="slip-racks">
         <tbody>
           <tr>

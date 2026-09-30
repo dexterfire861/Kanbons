@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList } from "./result";
 
-// Written by PO-ingestion/process.py today. The UI does not read these rows yet.
+// Confirm on New packing slip writes these rows. No page lists them.
 
 export type PurchaseOrderLine =
   Database["public"]["Tables"]["purchase_order_lines"]["Row"];
@@ -16,6 +16,7 @@ export type PurchaseOrderLineUpdate =
 export async function listPurchaseOrderLines(
   purchaseOrderId: number
 ): Promise<PurchaseOrderLine[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("purchase_order_lines")
@@ -28,6 +29,7 @@ export async function listPurchaseOrderLines(
 export async function createPurchaseOrderLine(
   input: PurchaseOrderLineInsert
 ): Promise<PurchaseOrderLine> {
+  const supabase = await createClient();
   return ok(
     await supabase
       .from("purchase_order_lines")

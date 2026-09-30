@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { recordFieldChanges } from "./change_log";
 import { ok, okList, okMaybe } from "./result";
@@ -35,6 +35,7 @@ async function logMapping(
 }
 
 export async function listProductMappings(): Promise<ProductMapping[]> {
+  const supabase = await createClient();
   return okList(
     await supabase.from("product_mappings").select("*").order("id")
   );
@@ -44,6 +45,7 @@ export async function listProductMappingsPage(options?: {
   q?: string;
   limit?: number;
 }): Promise<ProductMapping[]> {
+  const supabase = await createClient();
   const limit = options?.limit ?? PAGE_LIMIT;
   const q = options?.q?.trim();
   let query = supabase.from("product_mappings").select("*");
@@ -59,6 +61,7 @@ export async function listProductMappingsPage(options?: {
 export async function getProductMapping(
   id: number
 ): Promise<ProductMapping | null> {
+  const supabase = await createClient();
   return okMaybe(
     await supabase.from("product_mappings").select("*").eq("id", id).maybeSingle()
   );
@@ -67,6 +70,7 @@ export async function getProductMapping(
 export async function createProductMapping(
   input: ProductMappingInsert
 ): Promise<ProductMapping> {
+  const supabase = await createClient();
   const row: ProductMapping = ok(
     await supabase.from("product_mappings").insert(input).select("*").single()
   );
@@ -78,6 +82,7 @@ export async function updateProductMapping(
   id: number,
   input: ProductMappingUpdate
 ): Promise<ProductMapping> {
+  const supabase = await createClient();
   const previous = await getProductMapping(id);
   const row: ProductMapping = ok(
     await supabase

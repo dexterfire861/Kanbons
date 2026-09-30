@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { currentPerson } from "@/lib/auth/session";
+import { roleAllows } from "@/lib/auth/permissions";
 import { listCustomers } from "@/lib/models/customers";
 import { listMatchProducts } from "@/lib/models/products";
 import { listProductMappings } from "@/lib/models/product_mappings";
@@ -11,6 +13,7 @@ import { PurchaseOrderForm } from "./po-form";
 export const maxDuration = 300;
 
 export default async function NewPackingSlipPage() {
+  const person = await currentPerson();
   const [customers, products, mappings, nextNumber, lastReads, stock] =
     await Promise.all([
       listCustomers(),
@@ -67,6 +70,7 @@ export default async function NewPackingSlipPage() {
         }))}
         nextNumber={nextNumber}
         stock={stock}
+        canOverride={roleAllows(person?.role, "stock.override")}
       />
       <section className="mt-8 max-w-4xl">
         <h2 className="text-lg font-semibold">Last reads</h2>

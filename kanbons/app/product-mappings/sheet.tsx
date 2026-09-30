@@ -1,5 +1,7 @@
 "use client";
 
+import { FoldSheet } from "@/app/ui/fold-sheet";
+
 import { useEffect, useState } from "react";
 import type { ProductMapping } from "@/lib/models/product_mappings";
 import { AutosaveRow, Cell, useAutosave } from "@/app/ui/autosave-row";
@@ -119,7 +121,7 @@ export function ProductMappingSheet({
   }, [initial]);
 
   return (
-    <div className="sheet">
+    <FoldSheet>
       <table>
         <thead>
           <tr>
@@ -142,6 +144,6 @@ export function ProductMappingSheet({
           ))}
         </tbody>
       </table>
-    </div>
+    </FoldSheet>
   );
 }

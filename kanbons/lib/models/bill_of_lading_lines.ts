@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList } from "./result";
 
@@ -14,6 +14,7 @@ export type BillOfLadingLineUpdate =
 export async function listBillOfLadingLines(
   bolId: number
 ): Promise<BillOfLadingLine[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("bill_of_lading_lines")
@@ -24,6 +25,7 @@ export async function listBillOfLadingLines(
 }
 
 export async function listPackingListIdsOnBills(): Promise<number[]> {
+  const supabase = await createClient();
   const rows = okList(
     await supabase.from("bill_of_lading_lines").select("packing_list_id")
   );
@@ -33,6 +35,7 @@ export async function listPackingListIdsOnBills(): Promise<number[]> {
 export async function createBillOfLadingLine(
   input: BillOfLadingLineInsert
 ): Promise<BillOfLadingLine> {
+  const supabase = await createClient();
   return ok(
     await supabase
       .from("bill_of_lading_lines")

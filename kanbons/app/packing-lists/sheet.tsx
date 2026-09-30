@@ -1,5 +1,7 @@
 "use client";
 
+import { FoldSheet } from "@/app/ui/fold-sheet";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PackingList } from "@/lib/models/packing_lists";
@@ -169,7 +171,7 @@ export function PackingListSheet({ rows: initial }: { rows: PackingList[] }) {
   }, [initial]);
 
   return (
-    <div className="sheet">
+    <FoldSheet>
       <table>
         <thead>
           <tr>
@@ -197,6 +199,6 @@ export function PackingListSheet({ rows: initial }: { rows: PackingList[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </FoldSheet>
   );
 }

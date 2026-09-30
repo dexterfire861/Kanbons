@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 import { ok, okList } from "./result";
 
@@ -16,6 +16,7 @@ export type PackingListLineTotal =
 export async function listPackingListLines(
   packingListId: number
 ): Promise<PackingListLineTotal[]> {
+  const supabase = await createClient();
   return okList(
     await supabase
       .from("packing_list_line_totals")
@@ -28,6 +29,7 @@ export async function listPackingListLines(
 export async function createPackingListLine(
   input: PackingListLineInsert
 ): Promise<PackingListLine> {
+  const supabase = await createClient();
   return ok(
     await supabase.from("packing_list_lines").insert(input).select("*").single()
   );
@@ -37,6 +39,7 @@ export async function updatePackingListLine(
   id: number,
   input: PackingListLineUpdate
 ): Promise<PackingListLine> {
+  const supabase = await createClient();
   return ok(
     await supabase
       .from("packing_list_lines")
@@ -48,6 +51,7 @@ export async function updatePackingListLine(
 }
 
 export async function deletePackingListLine(id: number): Promise<void> {
+  const supabase = await createClient();
   const result = await supabase.from("packing_list_lines").delete().eq("id", id);
   if (result.error) throw new Error(result.error.message);
 }
