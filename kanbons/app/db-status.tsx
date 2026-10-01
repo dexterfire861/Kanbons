@@ -7,8 +7,7 @@ export async function DbStatus({ children }: { children: ReactNode }) {
   return (
     <main className="p-6">
       <p>
-        Database is not answering. Open Docker Desktop, then from the project
-        folder run npx supabase start.
+        Database is not answering.
       </p>
     </main>
   );

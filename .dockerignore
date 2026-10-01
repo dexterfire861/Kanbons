@@ -1,0 +1,16 @@
+.git
+.venv
+**/.venv
+**/node_modules
+**/.next
+data
+training_data
+.hf_cache
+**/.env
+**/.env.*
+kanbons/.vercel
+**/.DS_Store
+**/__pycache__
+*.pyc
+.cursor
+observability
